@@ -1,23 +1,313 @@
-﻿@inherits LayoutComponentBase
+﻿@using ToolHub.Domain.Models
+@inherits LayoutComponentBase
+@inject ToolHub.State.ThemeState Theme
+@inject ToolHub.State.ToolHubState HubState
+@implements IDisposable
+@inject ToolHub.State.CategoryState Categories
 
-<div class="page">
-    <div class="sidebar">
-        <NavMenu />
-    </div>
+<div class="app-container">
+    <div class="topbar">
+        <div class="logo">
+            <div class="logo-wrapper">
+                <img src="logo.svg" class="company-logo" />
+            </div>
 
-    <main>
-        <div class="top-row px-4">
-            <a href="https://learn.microsoft.com/aspnet/core/" target="_blank">About</a>
+            <span class="app-title">Tool Hub</span>
         </div>
 
-        <article class="content px-4">
+        <div class="topbar-actions">
+
+            <button class="icon-btn">
+                <svg viewBox="0 0 24 24" class="icon">
+                    <path fill="currentColor"
+                          d="M12 17.27L18.18 21 16.54 13.97
+                         22 9.24 14.81 8.63
+                         12 2 9.19 8.63
+                         2 9.24 7.46 13.97
+                         5.82 21z" />
+                </svg>
+                <span>Favorites</span>
+            </button>
+
+            <button class="icon-btn" @onclick="async () => await Theme.ToggleAsync()"
+                    title="Toggle theme">
+                <svg viewBox="0 0 24 24" class="icon">
+                    <path fill="currentColor"
+                          d="M12 3a9 9 0 100 18
+                 9 9 0 000-18zm0 2
+                 a7 7 0 010 14V5z" />
+                </svg>
+            </button>
+
+            <button class="top-btn">Login</button>
+        </div>
+    </div>
+
+    <div class="main-grid">
+        <div class="left-panel">
+            <h4>Filters</h4>
+        </div>
+
+        <div class="center-panel">
             @Body
-        </article>
-    </main>
+        </div>
+
+        <div class="right-panel">
+            <div class="details-content">
+                <h4>Details</h4>
+
+                @if (HubState.Selected is null)
+                {
+                    <div class="muted">Select a tool to see details.</div>
+                }
+                else
+                {
+                    <div class="details-title">@HubState.Selected.Name</div>
+                    <div class="details-meta">
+                        @HubState.Selected.Category · @HubState.Selected.Status · @HubState.Selected.Version
+                    </div>
+
+                    <div class="details-desc">@HubState.Selected.Description</div>
+
+                    <div class="details-section">
+                        <div class="details-label">Owner</div>
+                        <div>@HubState.Selected.Owner</div>
+                    </div>
+
+                    <div class="details-section">
+                        <div class="details-label">Tool location</div>
+                        <div class="mono-wrap">@HubState.Selected.ToolFolderPath</div>
+                    </div>
+
+                    <div class="details-actions">
+                        <button class="top-btn">Open location</button>
+                    </div>
+
+                    <div class="details-section">
+                        <div class="details-label">Last update</div>
+                        <div>@HubState.Selected.UpdatedByName · @HubState.Selected.UpdatedAtUtc.LocalDateTime</div>
+                    </div>
+
+                    <div class="details-section">
+                        <div class="details-label">Tags</div>
+                        <div class="tag-row">
+                            @foreach (var tag in HubState.Selected.Tags)
+                            {
+                                <span class="tag">@tag</span>
+                            }
+                        </div>
+                    </div>
+                }
+            </div>
+
+            <div class="details-footer">
+                <button class="top-btn" @onclick="OpenAdd">Add</button>
+
+                @if (HubState.Selected != null)
+                {
+                    <button class="top-btn" @onclick="OpenEdit">Edit</button>
+                    <button class="top-btn danger" @onclick="DeleteSelected">Delete</button>
+                }
+            </div>
+        </div>
+    </div>
 </div>
 
-<div id="blazor-error-ui" data-nosnippet>
-    An unhandled error has occurred.
-    <a href="." class="reload">Reload</a>
-    <span class="dismiss">🗙</span>
-</div>
+@if (showModal)
+{
+    <div class="modal-overlay">
+        <div class="modal-box">
+            <h3>@(isEdit ? "Edit Tool" : "Add Tool")</h3>
+
+            <div class="form-group">
+                <label>Name</label>
+                <input @bind="editName" />
+            </div>
+
+            <div class="form-group">
+                <label>Category</label>
+                <select @bind="editCategory">
+                    @foreach (var c in Categories.Categories)
+                    {
+                        <option value="@c">@c</option>
+                    }
+                </select>
+            </div>
+
+            <div class="form-group">
+                <label>Owner</label>
+                <input @bind="editOwner" />
+            </div>
+
+            <div class="form-group">
+                <label>Status</label>
+                <select @bind="editStatus">
+                    <option value="Active">Active</option>
+                    <option value="Preview">Preview</option>
+                    <option value="Deprecated">Deprecated</option>
+                </select>
+            </div>
+
+            <div class="form-group">
+                <label>Version</label>
+                <input @bind="editVersion" placeholder="e.g. 1.0.0" />
+            </div>
+
+            <div class="form-group">
+                <label>Description</label>
+                <textarea @bind="editDescription"></textarea>
+            </div>
+
+            <div class="form-group">
+                <label>Tags (comma separated)</label>
+                <input @bind="editTags" placeholder="tag1, tag2, tag3" />
+            </div>
+
+            @if (isEdit && HubState.Selected is not null)
+            {
+                <div class="form-group">
+                    <label>Tool folder</label>
+                    <div class="readonly-box">@HubState.Selected.ToolFolderPath</div>
+                </div>
+            }
+
+
+            <div class="modal-actions">
+                <button class="top-btn" @onclick="Save">Save</button>
+                <button class="top-btn" @onclick="() => showModal = false">Cancel</button>
+            </div>
+        </div>
+    </div>
+}
+
+
+@code {
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (firstRender)
+        {
+            await Theme.InitializeAsync();
+        }
+    }
+
+    protected override void OnInitialized()
+    {
+        HubState.Changed += OnHubStateChanged;
+    }
+
+    private void OnHubStateChanged()
+    {
+        InvokeAsync(StateHasChanged);
+    }
+
+    public void Dispose()
+    {
+        HubState.Changed -= OnHubStateChanged;
+    }
+
+    private bool showModal = false;
+    private bool isEdit = false;
+
+    private void OpenAdd()
+    {
+        isEdit = false;
+
+        editName = "";
+        editCategory = "";
+        editOwner = "";
+        editStatus = "Active";
+        editVersion = "1.0.0";
+        editDescription = "";
+        editTags = "";
+
+        showModal = true;
+    }
+
+    private void OpenEdit()
+    {
+        if (HubState.Selected is null)
+            return;
+
+        isEdit = true;
+
+        editName = HubState.Selected.Name;
+        editCategory = HubState.Selected.Category;
+        editOwner = HubState.Selected.Owner;
+        editStatus = HubState.Selected.Status;
+        editVersion = HubState.Selected.Version;
+        editDescription = HubState.Selected.Description;
+        editTags = string.Join(", ", HubState.Selected.Tags);
+
+        showModal = true;
+    }
+
+    private void DeleteSelected()
+    {
+        if (HubState.Selected != null)
+            HubState.Delete(HubState.Selected.Id);
+    }
+
+    private string editName = "";
+    private string editCategory = "";
+    private string editOwner = "";
+    private string editStatus = "Active";
+    private string editVersion = "1.0.0";
+    private string editDescription = "";
+    private string editTags = "";
+
+    private void Save()
+    {
+        if (string.IsNullOrWhiteSpace(editName))
+            return;
+
+        var tags = editTags
+            .Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries)
+            .ToList();
+
+        if (isEdit && HubState.Selected != null)
+        {
+            var updated = HubState.Selected with
+            {
+                Name = editName,
+                Category = editCategory,
+                Owner = editOwner,
+                Status = editStatus,
+                Version = editVersion,
+                Description = editDescription,
+                Tags = tags,
+                UpdatedAtUtc = DateTimeOffset.UtcNow,
+                UpdatedByName = "Dev User"
+            };
+
+            HubState.Update(updated);
+        }
+        else
+        {
+            var newId = Guid.NewGuid().ToString("N");
+            var toolFolderPath = $"tools/{newId}";
+
+            var newTool = new ToolEntry(
+                Id: newId,
+                Name: editName,
+                Category: editCategory,
+                Owner: editOwner,
+                Status: editStatus,
+                Version: editVersion,
+                Description: editDescription,
+                Tags: tags,
+                ToolFolderPath: toolFolderPath,
+                ManualPath: null,
+                UpdatedAtUtc: DateTimeOffset.UtcNow,
+                UpdatedByOid: "dev",
+                UpdatedByName: "Dev User"
+            );
+
+            HubState.Add(newTool);
+        }
+
+        showModal = false;
+    }
+
+
+}
+

@@ -1,7 +1,91 @@
 ﻿@page "/"
+@inject ToolHub.State.ToolHubState State
+@implements IDisposable
 
-<PageTitle>Home</PageTitle>
+<h3>Tool Library</h3>
 
-<h1>Hello!</h1>
+<div class="search-row">
+    <input placeholder="Search tools..."
+           @bind="State.SearchTerm"
+           @bind:event="oninput"
+           class="search-input" />
 
-Welcome to your new app.
+    <div class="toolbar-right">
+        <span class="tool-count">@State.Filtered.Count tool(s)</span>
+
+        <div class="view-toggle">
+            <button class="view-btn @(State.CurrentView == ToolHub.State.ViewMode.Cards ? "active" : "")"
+                    @onclick="() => State.SetView(ToolHub.State.ViewMode.Cards)"
+                    title="Cards view">
+                Cards
+            </button>
+
+            <button class="view-btn @(State.CurrentView == ToolHub.State.ViewMode.List ? "active" : "")"
+                    @onclick="() => State.SetView(ToolHub.State.ViewMode.List)"
+                    title="List view">
+                List
+            </button>
+        </div>
+    </div>
+</div>
+
+
+@if (State.DataStatus == ToolHub.Application.Abstractions.DataStatus.Disabled)
+{
+    <div class="dev-banner">
+        Data source disabled (test mode)
+    </div>
+}
+
+@if (State.CurrentView == ToolHub.State.ViewMode.Cards)
+{
+    <div class="results-container">
+        @foreach (var tool in State.Filtered)
+        {
+            <div class="tool-card @(State.Selected?.Id == tool.Id ? "selected" : "")"
+                 @onclick="() => State.Select(tool.Id)">
+
+                <div class="card-header">
+                    <div class="tool-name">@tool.Name</div>
+                    <span class="badge">@tool.Category</span>
+                </div>
+
+                <div class="tool-desc">@tool.Description</div>
+
+            </div>
+        }
+    </div>
+}
+else
+{
+    <div class="list-container">
+        @foreach (var tool in State.Filtered)
+        {
+            <div class="tool-row @(State.Selected?.Id == tool.Id ? "selected" : "")"
+                 @onclick="() => State.Select(tool.Id)">
+                <div class="tool-row-name">@tool.Name</div>
+                <div class="tool-row-meta">@tool.Category · @tool.Version</div>
+            </div>
+        }
+    </div>
+}
+
+
+@code {
+    protected override async Task OnInitializedAsync()
+    {
+        State.Changed += OnStateChanged;
+        await State.LoadAsync();
+    }
+
+    private void OnStateChanged()
+    {
+        InvokeAsync(StateHasChanged);
+    }
+
+    public void Dispose()
+    {
+        State.Changed -= OnStateChanged;
+    }
+}
+
