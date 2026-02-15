@@ -79,13 +79,35 @@ public sealed class ToolHubState
         NotifyChanged();
     }
 
-    public IReadOnlyList<ToolEntry> Filtered =>
-        string.IsNullOrWhiteSpace(SearchTerm)
-            ? Tools
-            : Tools.Where(t =>
-                t.Name.Contains(SearchTerm, StringComparison.OrdinalIgnoreCase) ||
-                t.Description.Contains(SearchTerm, StringComparison.OrdinalIgnoreCase))
-              .ToList();
+    public IReadOnlyList<ToolEntry> Filtered
+    {
+        get
+        {
+            IEnumerable<ToolEntry> q = Tools;
+
+            if (!string.IsNullOrWhiteSpace(SelectedCategory))
+                q = q.Where(t => string.Equals(t.Category, SelectedCategory, StringComparison.OrdinalIgnoreCase));
+
+            if (!string.IsNullOrWhiteSpace(SelectedStatus))
+                q = q.Where(t => string.Equals(t.Status, SelectedStatus, StringComparison.OrdinalIgnoreCase));
+
+            if (!string.IsNullOrWhiteSpace(SearchTerm))
+                q = q.Where(t =>
+                    t.Name.Contains(SearchTerm, StringComparison.OrdinalIgnoreCase) ||
+                    t.Description.Contains(SearchTerm, StringComparison.OrdinalIgnoreCase));
+
+            q = CurrentSort switch
+            {
+                SortMode.LastUpdatedDesc => q.OrderByDescending(t => t.UpdatedAtUtc),
+                SortMode.NameAsc => q.OrderBy(t => t.Name),
+                SortMode.CategoryAsc => q.OrderBy(t => t.Category).ThenBy(t => t.Name),
+                _ => q
+            };
+
+            return q.ToList();
+
+        }
+    }
 
     public ToolEntry? Selected { get; private set; }
 
@@ -135,6 +157,49 @@ public sealed class ToolHubState
         NotifyChanged();
     }
 
+    public string? SelectedCategory { get; private set; }
+    public string? SelectedStatus { get; private set; }
+
+    public void SetCategory(string? category)
+    {
+        SelectedCategory = category;
+        NotifyChanged();
+    }
+
+    public void SetStatus(string? status)
+    {
+        SelectedStatus = status;
+        NotifyChanged();
+    }
+
+    public void ClearFilters()
+    {
+        SelectedCategory = null;
+        SelectedStatus = null;
+        NotifyChanged();
+    }
+
+    public IReadOnlyList<string> AvailableCategories =>
+        Tools.Select(t => t.Category)
+             .Where(x => !string.IsNullOrWhiteSpace(x))
+             .Distinct(StringComparer.OrdinalIgnoreCase)
+             .OrderBy(x => x)
+             .ToList();
+
+    public IReadOnlyList<string> AvailableStatuses =>
+        Tools.Select(t => t.Status)
+             .Where(x => !string.IsNullOrWhiteSpace(x))
+             .Distinct(StringComparer.OrdinalIgnoreCase)
+             .OrderBy(x => x)
+             .ToList();
+
+    public SortMode CurrentSort { get; private set; } = SortMode.LastUpdatedDesc;
+
+    public void SetSort(SortMode mode)
+    {
+        CurrentSort = mode;
+        NotifyChanged();
+    }
 
 }
 

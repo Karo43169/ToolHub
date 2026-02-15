@@ -16,19 +16,6 @@
         </div>
 
         <div class="topbar-actions">
-
-            <button class="icon-btn">
-                <svg viewBox="0 0 24 24" class="icon">
-                    <path fill="currentColor"
-                          d="M12 17.27L18.18 21 16.54 13.97
-                         22 9.24 14.81 8.63
-                         12 2 9.19 8.63
-                         2 9.24 7.46 13.97
-                         5.82 21z" />
-                </svg>
-                <span>Favorites</span>
-            </button>
-
             <button class="icon-btn" @onclick="async () => await Theme.ToggleAsync()"
                     title="Toggle theme">
                 <svg viewBox="0 0 24 24" class="icon">
@@ -46,7 +33,64 @@
     <div class="main-grid">
         <div class="left-panel">
             <h4>Filters</h4>
+
+            <div class="filter-header">
+                <button class="clear-btn" @onclick="HubState.ClearFilters">
+                    Clear
+                </button>
+            </div>
+
+            <div class="left-separator"></div>
+
+            <div class="quick-actions">
+                <button class="quick-btn @(HubState.CurrentSort == ToolHub.State.SortMode.LastUpdatedDesc ? "active" : "")"
+                        @onclick="() => HubState.SetSort(ToolHub.State.SortMode.LastUpdatedDesc)"
+                        title="Sort by last updated">
+                    <span class="quick-icon">🔥</span>
+                    <span>Last updated</span>
+                </button>
+
+                <button class="quick-btn" title="Favorites (requires auth)">
+                    <span class="quick-icon">⭐</span>
+                    <span>Favorites</span>
+                </button>
+            </div>
+
+            <div class="filter-section">
+                <div class="filter-title">Category</div>
+
+                <button class="filter-item @(HubState.SelectedCategory is null ? "active" : "")"
+                        @onclick="() => HubState.SetCategory(null)">
+                    All
+                </button>
+
+                @foreach (var c in HubState.AvailableCategories)
+                {
+                    <button class="filter-item @(HubState.SelectedCategory == c ? "active" : "")"
+                            @onclick="() => HubState.SetCategory(c)">
+                        @c
+                    </button>
+                }
+            </div>
+
+            <div class="filter-section">
+                <div class="filter-title">Status</div>
+
+                <button class="filter-item @(HubState.SelectedStatus is null ? "active" : "")"
+                        @onclick="() => HubState.SetStatus(null)">
+                    All
+                </button>
+
+                @foreach (var s in HubState.AvailableStatuses)
+                {
+                    <button class="filter-item @(HubState.SelectedStatus == s ? "active" : "")"
+                            @onclick="() => HubState.SetStatus(s)">
+                        @s
+                    </button>
+                }
+            </div>
         </div>
+
 
         <div class="center-panel">
             @Body
