@@ -11,7 +11,7 @@ public sealed class ThemeState
         _js = js;
     }
 
-    public string Current { get; private set; } = "dark";
+    public string Current { get; private set; } = "light";
 
     public async Task InitializeAsync()
     {

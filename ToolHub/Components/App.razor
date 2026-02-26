@@ -17,8 +17,7 @@
                 var saved = localStorage.getItem("toolhub.theme");
 
                 if (!saved) {
-                    var prefersLight = window.matchMedia("(prefers-color-scheme: light)").matches;
-                    saved = prefersLight ? "light" : "dark";
+                    saved = "light";
                 }
                 if (saved === "light") {
                     document.documentElement.classList.add("light");

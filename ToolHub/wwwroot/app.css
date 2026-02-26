@@ -147,148 +147,153 @@ body {
    LIGHT THEME OVERRIDES
 ============================= */
 
-body.light {
+.light body {
     background-color: #f3f4f6;
     color: #111827;
 }
 
-    body.light .topbar {
+    .light body .topbar {
         background: #ffffff;
         border-bottom: 1px solid #e5e7eb;
     }
 
-    body.light .left-panel,
-    body.light .center-panel,
-    body.light .right-panel {
+    .light body .topbar {
+        background: #ffffff;
+        border-bottom: 1px solid #e5e7eb;
+    }
+
+    .light body .left-panel,
+    .light body .center-panel,
+    .light body .right-panel {
         background: #ffffff;
         border: 1px solid #e5e7eb;
     }
 
-    body.light .top-btn,
-    body.light .icon-btn {
+    .light body .top-btn,
+    .light body .icon-btn {
         background: #f9fafb;
         border: 1px solid #e5e7eb;
         color: #111827;
     }
 
-    body.light .danger {
+    .light body .danger {
         background: #fee2e2;
         border: 1px solid #fca5a5;
         color: #991b1b;
     }
 
-    body.light .danger:hover {
+    .light body .danger:hover {
         background: #fecaca;
         border-color: #f87171;
     }
 
-    body.light .view-toggle {
+    .light body .view-toggle {
         background: #ffffff;
         border: 1px solid #e5e7eb;
     }
 
-    body.light .view-btn {
+    .light body .view-btn {
         color: #111827;
     }
 
-        body.light .view-btn.active {
+        .light body .view-btn.active {
             background: #f3f4f6;
         }
 
-    body.light .tool-row {
+    .light body .tool-row {
         background: #ffffff;
         border: 1px solid #e5e7eb;
     }
 
-    body.light .search-input {
+    .light body .search-input {
         background: #f9fafb;
         border: 1px solid #e5e7eb;
         color: #111827;
     }
 
-        body.light .search-input::placeholder {
+        .light body .search-input::placeholder {
             color: #6b7280;
         }
 
-    body.light .dev-banner {
+    .light body .dev-banner {
         background: #2563eb;
     }
 
-    body.light .tag {
+    .light body .tag {
         background: #f9fafb;
         border: 1px solid #e5e7eb;
     }
 
-    body.light .tool-card,
-    body.light .tool-row {
+    .light body .tool-card,
+    .light body .tool-row {
         background: #ffffff;
         border: 1px solid #e5e7eb;
         color: #111827;
     }
 
-    body.light .tool-desc,
-    body.light .tool-row-meta {
+    .light body .tool-desc,
+    .light body .tool-row-meta {
         color: #374151;
         opacity: 0.85;
     }
 
-    body.light .tool-card:hover,
-    body.light .tool-row:hover {
+    .light body .tool-card:hover,
+    .light body .tool-row:hover {
         border-color: #6366f1;
     }
 
-    body.light .badge {
+    .light body .badge {
         background: #f9fafb;
         border: 1px solid #e5e7eb;
         color: #111827;
     }
 
-    body.light .modal-box {
+    .light body .modal-box {
         background: #ffffff;
         border: 1px solid #e5e7eb;
     }
 
-    body.light .form-group input,
-    body.light .form-group textarea,
-    body.light .form-group select {
+    .light body .form-group input,
+    .light body .form-group textarea,
+    .light body .form-group select {
         background: #ffffff;
         border: 1px solid #e5e7eb;
         color: #111827;
     }
 
-    body.light .details-footer {
+    .light body .details-footer {
         border-top: 1px solid #e5e7eb;
     }
 
-    body.light .readonly-box {
+    .light body .readonly-box {
         background: #f9fafb;
         border: 1px solid #e5e7eb;
         color: #111827;
     }
 
-    body.light .filter-item {
+    .light body .filter-item {
         background: #ffffff;
         border: 1px solid #e5e7eb;
         color: #111827;
     }
 
-    body.light .filter-footer {
+    .light body .filter-footer {
         border-top: 1px solid #e5e7eb;
     }
 
-    body.light .quick-btn {
+    .light body .quick-btn {
         background: #ffffff;
         border: 1px solid #e5e7eb;
         color: #111827;
     }
 
-    body.light .clear-btn {
+    .light body .clear-btn {
         background: #ffffff;
         border: 1px solid #e5e7eb;
         color: #111827;
     }
 
-    body.light .left-separator {
+    .light body .left-separator {
         background: #e5e7eb;
     }
 
