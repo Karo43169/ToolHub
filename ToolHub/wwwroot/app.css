@@ -127,6 +127,7 @@ body {
    LOGO
 ============================= */
 
+
 .logo-wrapper {
     width: 80px;
     height: 45px;
@@ -136,8 +137,7 @@ body {
     align-items: center;
     justify-content: center;
 }
-
-.company-logo {
+    .company-logo {
     max-height: 55px;
     max-width: 90%;
     object-fit: contain;

@@ -11,18 +11,30 @@ public sealed class ThemeState
         _js = js;
     }
 
-    public string Current { get; private set; } = "light";
+    public string Current { get; private set; } = "dark";
+    public bool IsLight => Current == "light";
+    public event Action? Changed;
 
     public async Task InitializeAsync()
     {
-        // Odczyt z localStorage i od razu ustawienie klasy na body
-        Current = await _js.InvokeAsync<string>("toolhubTheme.get");
+        // odczyt z localStorage
+        var saved = await _js.InvokeAsync<string>("toolhubTheme.get");
+
+        // zabezpieczenie na różne formaty
+        saved = (saved ?? "").Trim().ToLowerInvariant();
+        Current = (saved == "light") ? "light" : "dark";
+
         await _js.InvokeVoidAsync("toolhubTheme.set", Current);
+
+        Changed?.Invoke();
     }
 
     public async Task ToggleAsync()
     {
         Current = (Current == "dark") ? "light" : "dark";
         await _js.InvokeVoidAsync("toolhubTheme.set", Current);
+
+        Changed?.Invoke();
     }
+
 }
