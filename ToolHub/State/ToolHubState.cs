@@ -35,7 +35,7 @@ public sealed class ToolHubState
         new(
             Id: "tool-001",
             Name: "DXQ Installer",
-            Category: "Deployment",
+            Category: "DXQ",
             Owner: "Automation Team",
             Status: "Active",
             Version: "1.0.0",
@@ -50,7 +50,7 @@ public sealed class ToolHubState
         new(
             Id: "tool-002",
             Name: "DurrToolHub Updater",
-            Category: "Utilities",
+            Category: "Scripts / Excel Tools",
             Owner: "IT Tools",
             Status: "Preview",
             Version: "0.9.3",

@@ -2,15 +2,22 @@
 
 public sealed class CategoryState
 {
-    // Na razie “na sztywno”. Później: Load z JSON/SharePoint.
     public IReadOnlyList<string> Categories { get; } = new[]
     {
-        "Deployment",
-        "Utilities",
+        "Backup / Restore Tools",
+        "Data Processing",
         "Diagnostics",
-        "HMI/SCADA",
+        "Documentation",
+        "DXQ",
+        "Firmware / Hardware Tools",
+        "Manuals",
+        "MES",
+        "Motion / Drives",
+        "Network / Communication",
         "PLC",
-        "Scripts",
-        "Documentation"
+        "Project Templates",
+        "Scripts / Excel Tools",
+        "Simulation",
+        "Testing"
     };
 }
