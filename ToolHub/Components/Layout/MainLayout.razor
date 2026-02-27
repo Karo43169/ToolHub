@@ -5,6 +5,13 @@
 @implements IDisposable
 @inject ToolHub.State.CategoryState Categories
 
+@* DODANE: *@
+@using System.Security.Claims
+@using Microsoft.Graph
+@using Microsoft.AspNetCore.Components.Authorization
+@inject GraphServiceClient Graph
+@inject AuthenticationStateProvider AuthStateProvider
+
 <div class="app-container">
     <div class="topbar">
         <div class="logo">
@@ -26,7 +33,43 @@
                 </svg>
             </button>
 
-            <button class="top-btn">Login</button>
+            @* === ZMIANA: panel użytkownika / Login w prawym górnym rogu === *@
+            <AuthorizeView>
+                <Authorized Context="auth">
+                    <div style="display:flex; align-items:center; gap:10px;">
+                        @if (!string.IsNullOrEmpty(_photoDataUrl))
+                        {
+                            <img src="@_photoDataUrl"
+                                 alt="profile"
+                                 style="width:32px;height:32px;border-radius:50%;object-fit:cover;border:1px solid #5e70eb;" />
+                        }
+                        else
+                        {
+                            <div title="@GetDisplayName(auth.User)"
+                                 style="width:32px;height:32px;border-radius:50%;
+                                            background:#4F6BED;color:white;
+                                            display:flex;align-items:center;justify-content:center;
+                                            font-weight:600;">
+                                @GetInitials(auth.User)
+                            </div>
+                        }
+
+                        <div style="display:flex; flex-direction:column; line-height:1.1;">
+                            <span style="font-size:14px; font-weight:600;">
+                                @GetDisplayName(auth.User)
+                            </span>
+                            <span style="font-size:12px; color:#6b7280;">
+                                @GetEmail(auth.User)
+                            </span>
+                        </div>
+                    </div>
+                </Authorized>
+
+                <NotAuthorized>
+                    <a class="top-btn" href="/MicrosoftIdentity/Account/SignIn">Login</a>
+                </NotAuthorized>
+            </AuthorizeView>
+            @* === KONIEC ZMIANY === *@
         </div>
     </div>
 
@@ -215,7 +258,6 @@
                 </div>
             }
 
-
             <div class="modal-actions">
                 <button class="top-btn" @onclick="Save">Save</button>
                 <button class="top-btn" @onclick="() => showModal = false">Cancel</button>
@@ -224,15 +266,48 @@
     </div>
 }
 
-
 @code {
     protected override async Task OnAfterRenderAsync(bool firstRender)
     {
         if (firstRender)
         {
-            
+            // Pobierz zdjęcie tylko gdy user jest zalogowany
+            var state = await AuthStateProvider.GetAuthenticationStateAsync();
+            if (state.User?.Identity?.IsAuthenticated == true)
+            {
+                await TryLoadProfilePhotoAsync();
+            }
         }
     }
+
+    private async Task TryLoadProfilePhotoAsync()
+    {
+        if (_photoLoaded) return;
+        try
+        {
+            // Graph SDK v5 – bez .Request()
+            using var stream = await Graph.Me.Photo.Content.GetAsync();
+            if (stream != null)
+            {
+                using var ms = new MemoryStream();
+                await stream.CopyToAsync(ms);
+                var base64 = Convert.ToBase64String(ms.ToArray());
+                _photoDataUrl = $"data:image/jpeg;base64,{base64}";
+            }
+        }
+        catch
+        {
+            // brak zdjęcia lub brak uprawnień — pokaż inicjały
+        }
+        finally
+        {
+            _photoLoaded = true;
+            StateHasChanged();
+        }
+    }
+
+    private bool _photoLoaded = false;
+    private string? _photoDataUrl;
 
     protected override void OnInitialized()
     {
@@ -352,6 +427,32 @@
         showModal = false;
     }
 
+    // ===== Pomocnicze metody do wyświetlania danych użytkownika =====
+    private static string GetDisplayName(ClaimsPrincipal user)
+    {
+        return user?.FindFirst("name")?.Value
+               ?? user?.Identity?.Name
+               ?? "User";
+    }
 
+    private static string GetEmail(ClaimsPrincipal user)
+    {
+        return user?.FindFirst("preferred_username")?.Value
+               ?? user?.FindFirst(ClaimTypes.Email)?.Value
+               ?? "";
+    }
+
+    private static string GetInitials(ClaimsPrincipal user)
+    {
+        var name = GetDisplayName(user)?.Trim() ?? "";
+        if (string.IsNullOrEmpty(name)) return "?";
+
+        var parts = name.Split(' ', StringSplitOptions.RemoveEmptyEntries);
+        if (parts.Length == 1)
+            return parts[0].Substring(0, Math.Min(2, parts[0].Length)).ToUpperInvariant();
+
+        var c1 = parts[0].Length > 0 ? parts[0][0].ToString().ToUpperInvariant() : "";
+        var c2 = parts[1].Length > 0 ? parts[1][0].ToString().ToUpperInvariant() : "";
+        return $"{c1}{c2}";
+    }
 }
-
