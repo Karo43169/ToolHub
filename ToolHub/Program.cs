@@ -5,6 +5,14 @@ using Microsoft.Graph;
 
 var builder = WebApplication.CreateBuilder(args);
 
+// Wczytaj zmienne œrodowiskowe
+builder.Configuration.AddEnvironmentVariables();
+
+// Mapowanie ENV ? AzureAd (zostawiasz swoje nazwy w Azure: CLIENT_ID, CLIENT_SECRET, TENANT_ID)
+builder.Configuration["AzureAd:ClientId"] = Environment.GetEnvironmentVariable("CLIENT_ID");
+builder.Configuration["AzureAd:TenantId"] = Environment.GetEnvironmentVariable("TENANT_ID");
+builder.Configuration["AzureAd:ClientSecret"] = Environment.GetEnvironmentVariable("CLIENT_SECRET");
+
 builder.Services.AddRazorComponents().AddInteractiveServerComponents();
 builder.Services.AddCascadingAuthenticationState();
 
