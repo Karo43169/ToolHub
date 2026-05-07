@@ -1,5 +1,8 @@
 ﻿@page "/"
 @inject ToolHub.State.ToolHubState State
+@using System.Security.Claims
+@using Microsoft.AspNetCore.Components.Authorization
+@inject AuthenticationStateProvider AuthStateProvider
 @implements IDisposable
 
 <h3>Tool Library</h3>
@@ -45,6 +48,13 @@
             <div class="tool-card @(State.Selected?.Id == tool.Id ? "selected" : "")"
                  @onclick="() => State.Select(tool.Id)">
 
+                <button class="favorite-star @(State.IsFavorite(tool.Id) ? "active" : "")"
+                        title="Toggle favorite"
+                        @onclick="() => ToggleFavoriteAsync(tool.Id)"
+                        @onclick:stopPropagation="true">
+                    @(State.IsFavorite(tool.Id) ? "⭐" : "☆")
+                </button>
+
                 <div class="card-header">
                     <div class="tool-name">@tool.Name</div>
                     <span class="badge">@tool.Category</span>
@@ -63,6 +73,12 @@ else
         {
             <div class="tool-row @(State.Selected?.Id == tool.Id ? "selected" : "")"
                  @onclick="() => State.Select(tool.Id)">
+                <button class="favorite-star favorite-star-list @(State.IsFavorite(tool.Id) ? "active" : "")"
+                        title="Toggle favorite"
+                        @onclick="() => ToggleFavoriteAsync(tool.Id)"
+                        @onclick:stopPropagation="true">
+                    @(State.IsFavorite(tool.Id) ? "⭐" : "☆")
+                </button>
                 <div class="tool-row-name">@tool.Name</div>
                 <div class="tool-row-meta">@tool.Category · @tool.Version</div>
             </div>
@@ -72,10 +88,19 @@ else
 
 
 @code {
+    private string currentUserOid = string.Empty;
+    private string? favoriteMessage;
+
     protected override async Task OnInitializedAsync()
     {
         State.Changed += OnStateChanged;
         await State.LoadAsync();
+        
+        var authState = await AuthStateProvider.GetAuthenticationStateAsync();
+        currentUserOid = GetOid(authState.User);
+
+        if (!string.IsNullOrWhiteSpace(currentUserOid))
+            await State.LoadFavoritesAsync(currentUserOid);
     }
 
     private void OnStateChanged()
@@ -86,6 +111,25 @@ else
     public void Dispose()
     {
         State.Changed -= OnStateChanged;
+    }
+
+    private async Task ToggleFavoriteAsync(string toolId)
+    {
+        if (string.IsNullOrWhiteSpace(currentUserOid))
+        {
+            favoriteMessage = "Sign in to use favorites.";
+            return;
+        }
+
+        favoriteMessage = null;
+        await State.ToggleFavoriteAsync(currentUserOid, toolId);
+    }
+
+    private static string GetOid(ClaimsPrincipal user)
+    {
+        return user.FindFirst("http://schemas.microsoft.com/identity/claims/objectidentifier")?.Value
+            ?? user.FindFirst("oid")?.Value
+            ?? string.Empty;
     }
 }
 

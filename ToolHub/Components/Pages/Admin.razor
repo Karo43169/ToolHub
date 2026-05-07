@@ -1,0 +1,494 @@
+﻿@page "/admin"
+@implements IDisposable
+
+@using System.Security.Claims
+@using Microsoft.AspNetCore.Components.Authorization
+@using Microsoft.JSInterop
+@using ToolHub.Domain.Models
+@using ToolHub.State
+
+@inject ToolHub.Infrastructure.SharePoint.SharePointToolRequestReader RequestReader
+@inject ToolHub.Infrastructure.SharePoint.SharePointAdminService AdminService
+@inject ToolHub.Infrastructure.SharePoint.SharePointAdminLockService AdminLockService
+@inject ToolHub.Infrastructure.SharePoint.SharePointToolHistoryCleanupService HistoryCleanupService
+@inject AuthenticationStateProvider AuthStateProvider
+@inject IJSRuntime JS
+@inject AdminRequestState AdminRequestState
+@inject AdminRequestViewState ViewState
+
+@if (isChecking)
+{
+    <section class="admin-shell">
+        <div class="admin-empty">
+            <h3>Checking permissions...</h3>
+            <p>Please wait while your administrator access is being verified.</p>
+        </div>
+    </section>
+}
+else if (!isAdmin)
+{
+    <section class="admin-shell">
+        <div class="admin-empty">
+            <h3>Access denied</h3>
+            <p>You do not have permission to access the administration panel.</p>
+        </div>
+    </section>
+}
+else if (isPanelLocked)
+{
+    <section class="admin-shell">
+        <div class="admin-empty">
+            <h3>Administration panel locked</h3>
+            <p>@lockMessage</p>
+        </div>
+    </section>
+}
+else
+{
+    <section class="admin-shell">
+        <div class="admin-header">
+            <div>
+                <p class="admin-eyebrow">Administration</p>
+                <h1>@PageTitle</h1>
+                <p class="admin-subtitle">@PageSubtitle</p>
+            </div>
+
+            <div class="admin-count">
+                <span>@requests.Count</span>
+                <small>@CounterLabel</small>
+            </div>
+        </div>
+
+        @if (ViewState.IsHistory)
+        {
+            <div class="admin-history-toolbar" style="margin-bottom: 2rem;">
+                <button class="admin-btn admin-btn-danger"
+                        disabled="@(isClearingHistory || requests.Count == 0)"
+                        @onclick="ClearHistoryAsync">
+                    @(isClearingHistory ? "Clearing history..." : "Clear history")
+                </button>
+
+                @if (!string.IsNullOrWhiteSpace(historyCleanupMessage))
+                {
+                    <span class="admin-history-message">
+                        @historyCleanupMessage
+                    </span>
+                }
+            </div>
+        }
+
+        @if (requests.Count == 0)
+        {
+            <div class="admin-empty">
+                <h3>@EmptyTitle</h3>
+                <p>@EmptyText</p>
+            </div>
+        }
+        else if (ViewState.IsPending)
+        {
+            <div class="admin-request-grid">
+                @foreach (var req in requests)
+                {
+                    <article class="@GetRequestCardClass(req)"
+                             @onclick="() => SelectRequest(req)">
+                        <div class="request-card-top">
+                            <div>
+                                <div class="request-id">@req.RequestId</div>
+                                <h3>@req.Tool.Name</h3>
+                            </div>
+                            <span class="request-status">@req.Status</span>
+                        </div>
+
+                        <div class="request-meta">
+                            <div>
+                                <span>Category</span>
+                                <strong>@req.Tool.Category</strong>
+                            </div>
+                            <div>
+                                <span>Version</span>
+                                <strong>@req.Tool.Version</strong>
+                            </div>
+                            <div>
+                                <span>Requested at</span>
+                                <strong>@req.RequestedAtUtc.LocalDateTime</strong>
+                            </div>
+                        </div>
+
+                        <div class="request-user">
+                            <span>Requested by</span>
+                            <strong>@req.RequestedByName</strong>
+                            <small>@req.RequestedByEmail</small>
+                        </div>
+
+                        <p class="request-description">
+                            @req.Tool.Description
+                        </p>
+
+                        <div class="request-actions">
+                            @if (!string.IsNullOrWhiteSpace(req.ApplicationReqFolderUrl))
+                            {
+                                <a class="admin-btn admin-btn-primary"
+                                       href="@req.ApplicationReqFolderUrl"
+                                       target="_blank"
+                                       @onclick:stopPropagation="true">
+                                    Open files folder
+                                </a>
+                            }
+                        </div>
+                    </article>
+                }
+            </div>
+        }
+        else
+        {
+            <div class="admin-request-grid">
+                @foreach (var req in requests)
+                {
+                    <article class="@GetRequestCardClass(req) history-card"
+                             @onclick="() => SelectRequest(req)">
+                        <div class="request-card-top">
+                            <div>
+                                <div class="request-id">@req.RequestId</div>
+                                <h3>@req.Tool.Name</h3>
+                            </div>
+                            <span class="@GetStatusClass(req.Status)">@req.Status</span>
+                        </div>
+
+                        <div class="request-meta">
+                            <div>
+                                <span>Category</span>
+                                <strong>@req.Tool.Category</strong>
+                            </div>
+                            <div>
+                                <span>Version</span>
+                                <strong>@req.Tool.Version</strong>
+                            </div>
+                            <div>
+                                <span>Processed at</span>
+                                <strong>@GetProcessedAt(req)</strong>
+                            </div>
+                        </div>
+
+                        <div class="request-user">
+                            <span>Requested by</span>
+                            <strong>@req.RequestedByName</strong>
+                            <small>@req.RequestedByEmail</small>
+                        </div>
+
+                        <div class="request-user">
+                            <span>@GetProcessedByLabel(req)</span>
+                            <strong>@GetProcessedByName(req)</strong>
+                        </div>
+
+                        <p class="request-description">
+                            @req.Tool.Description
+                        </p>
+
+                        <div class="request-actions">
+                            @if (IsApproved(req) && !string.IsNullOrWhiteSpace(req.ApprovedToolId))
+                            {
+                                <span class="admin-history-note">
+                                    Tool ID: @req.ApprovedToolId
+                                </span>
+                            }
+
+                            @if (IsRejected(req) && !string.IsNullOrWhiteSpace(req.RejectedFolderUrl))
+                            {
+                                <a class="admin-btn admin-btn-primary"
+                                       href="@req.RejectedFolderUrl"
+                                       target="_blank"
+                                       @onclick:stopPropagation="true">
+                                    Open rejected folder
+                                </a>
+                            }
+                        </div>
+                    </article>
+                }
+            </div>
+        }
+    </section>
+}
+
+@code {
+    private static readonly TimeSpan HeartbeatInterval = TimeSpan.FromMinutes(5);
+
+    private IReadOnlyList<ToolRequestEntry> requests = [];
+
+    private bool isChecking = true;
+    private bool isAdmin = false;
+    private bool isPanelLocked = false;
+    private bool isClearingHistory = false;
+
+    private string currentAdminOid = string.Empty;
+    private string currentAdminName = string.Empty;
+    private string lockMessage = string.Empty;
+    private string? historyCleanupMessage;
+
+    private CancellationTokenSource? heartbeatCts;
+    private Task? heartbeatTask;
+
+    private string PageTitle => ViewState.IsPending
+        ? "Pending requests"
+        : "History";
+
+    private string PageSubtitle => ViewState.IsPending
+        ? "Review submitted tool requests."
+        : "Approved and rejected requests.";
+
+    private string CounterLabel => ViewState.IsPending ? "pending" : "history";
+    private string EmptyTitle => ViewState.IsPending ? "No requests found" : "No history";
+    private string EmptyText => ViewState.IsPending
+        ? "There are currently no pending tool requests."
+        : "There are no approved or rejected requests.";
+
+    protected override void OnInitialized()
+    {
+        AdminRequestState.RefreshRequested += OnRefreshRequested;
+        ViewState.Changed += OnViewStateChanged;
+    }
+
+    protected override async Task OnInitializedAsync()
+    {
+        var authState = await AuthStateProvider.GetAuthenticationStateAsync();
+        var user = authState.User;
+
+        currentAdminOid = GetOid(user);
+        currentAdminName = GetDisplayName(user);
+
+        isAdmin = await AdminService.IsAdminAsync(
+            currentAdminOid,
+            CancellationToken.None);
+
+        if (!isAdmin)
+        {
+            isChecking = false;
+            return;
+        }
+
+        var lockResult = await AdminLockService.TryAcquireAsync(
+            currentAdminOid,
+            currentAdminName,
+            CancellationToken.None);
+
+        if (!lockResult.IsAcquired)
+        {
+            isPanelLocked = true;
+            lockMessage = lockResult.Message ?? "Administration panel is currently locked by another administrator.";
+            isChecking = false;
+            return;
+        }
+
+        StartHeartbeat();
+
+        await ReloadRequestsAsync();
+        isChecking = false;
+    }
+
+    private void StartHeartbeat()
+    {
+        heartbeatCts?.Cancel();
+        heartbeatCts?.Dispose();
+
+        heartbeatCts = new CancellationTokenSource();
+        heartbeatTask = RunHeartbeatAsync(heartbeatCts.Token);
+    }
+
+    private async Task RunHeartbeatAsync(CancellationToken ct)
+    {
+        using var timer = new PeriodicTimer(HeartbeatInterval);
+
+        try
+        {
+            while (await timer.WaitForNextTickAsync(ct))
+            {
+                var result = await AdminLockService.TryAcquireAsync(
+                    currentAdminOid,
+                    currentAdminName,
+                    ct);
+
+                if (!result.IsAcquired)
+                {
+                    isPanelLocked = true;
+                    lockMessage = result.Message ?? "Administration panel lock was lost.";
+                    AdminRequestState.Clear();
+
+                    await InvokeAsync(StateHasChanged);
+                    return;
+                }
+            }
+        }
+        catch (OperationCanceledException)
+        {
+            // Expected when component is disposed.
+        }
+        catch (Exception ex)
+        {
+            isPanelLocked = true;
+            lockMessage = $"Administration lock heartbeat failed: {ex.Message}";
+            AdminRequestState.Clear();
+
+            await InvokeAsync(StateHasChanged);
+        }
+    }
+
+    private async Task ReloadRequestsAsync()
+    {
+        requests = ViewState.IsPending
+            ? await RequestReader.ListPendingAsync(CancellationToken.None)
+            : await RequestReader.ListHistoryAsync(CancellationToken.None);
+    }
+
+    private async Task ClearHistoryAsync()
+    {
+        if (!ViewState.IsHistory)
+            return;
+
+        if (isClearingHistory)
+            return;
+
+        if (requests.Count == 0)
+            return;
+
+        var confirmed = await JS.InvokeAsync<bool>(
+            "confirm",
+            "This will permanently delete all history request JSON files and rejected archive folders. Approved tools and Application Source folders will NOT be deleted. Continue?");
+
+        if (!confirmed)
+            return;
+
+        try
+        {
+            isClearingHistory = true;
+            historyCleanupMessage = null;
+            AdminRequestState.Clear();
+
+            var result = await HistoryCleanupService.ClearHistoryAsync(CancellationToken.None);
+
+            await ReloadRequestsAsync();
+
+            historyCleanupMessage = result.HasErrors
+                ? $"    History cleared with errors. Deleted request JSON: {result.DeletedRequestJsonCount}, deleted rejected folders: {result.DeletedRejectedFolderCount}, errors: {result.Errors.Count}."
+                : $"    History cleared. Deleted request JSON: {result.DeletedRequestJsonCount}, deleted rejected folders: {result.DeletedRejectedFolderCount}.";
+        }
+        catch (Exception ex)
+        {
+            historyCleanupMessage = $"Clear history failed: {ex.Message}";
+        }
+        finally
+        {
+            isClearingHistory = false;
+            await InvokeAsync(StateHasChanged);
+        }
+    }
+
+    private async void OnRefreshRequested()
+    {
+        if (!isAdmin || isPanelLocked)
+            return;
+
+        await ReloadRequestsAsync();
+        await InvokeAsync(StateHasChanged);
+    }
+
+    private async void OnViewStateChanged()
+    {
+        if (!isAdmin || isPanelLocked)
+            return;
+
+        AdminRequestState.Clear();
+        historyCleanupMessage = null;
+        await ReloadRequestsAsync();
+        await InvokeAsync(StateHasChanged);
+    }
+
+    private void SelectRequest(ToolRequestEntry request)
+    {
+        AdminRequestState.Select(request);
+    }
+
+    private string GetRequestCardClass(ToolRequestEntry request)
+    {
+        var isSelected =
+            AdminRequestState.Selected?.RequestId == request.RequestId;
+
+        return isSelected
+            ? "admin-request-card selected"
+            : "admin-request-card";
+    }
+
+    private static bool IsApproved(ToolRequestEntry request)
+    {
+        return string.Equals(request.Status, "Approved", StringComparison.OrdinalIgnoreCase);
+    }
+
+    private static bool IsRejected(ToolRequestEntry request)
+    {
+        return string.Equals(request.Status, "Rejected", StringComparison.OrdinalIgnoreCase);
+    }
+
+    private static string GetStatusClass(string status)
+    {
+        if (string.Equals(status, "Approved", StringComparison.OrdinalIgnoreCase))
+            return "request-status request-status-approved";
+
+        if (string.Equals(status, "Rejected", StringComparison.OrdinalIgnoreCase))
+            return "request-status request-status-rejected";
+
+        return "request-status";
+    }
+
+    private static string GetProcessedAt(ToolRequestEntry request)
+    {
+        var processedAt = IsApproved(request)
+            ? request.ApprovedAtUtc
+            : request.RejectedAtUtc;
+
+        return processedAt?.LocalDateTime.ToString() ?? "-";
+    }
+
+    private static string GetProcessedByLabel(ToolRequestEntry request)
+    {
+        return IsApproved(request)
+            ? "Approved by"
+            : "Rejected by";
+    }
+
+    private static string GetProcessedByName(ToolRequestEntry request)
+    {
+        if (IsApproved(request))
+            return string.IsNullOrWhiteSpace(request.ApprovedByName) ? "-" : request.ApprovedByName!;
+
+        return string.IsNullOrWhiteSpace(request.RejectedByName) ? "-" : request.RejectedByName!;
+    }
+
+    private static string GetOid(ClaimsPrincipal user)
+    {
+        return user.FindFirst("http://schemas.microsoft.com/identity/claims/objectidentifier")?.Value
+            ?? user.FindFirst("oid")?.Value
+            ?? string.Empty;
+    }
+
+    private static string GetDisplayName(ClaimsPrincipal user)
+    {
+        return user.FindFirst("name")?.Value
+            ?? user.Identity?.Name
+            ?? "Unknown admin";
+    }
+
+    public void Dispose()
+    {
+        AdminRequestState.RefreshRequested -= OnRefreshRequested;
+        ViewState.Changed -= OnViewStateChanged;
+        AdminRequestState.Clear();
+
+        heartbeatCts?.Cancel();
+        heartbeatCts?.Dispose();
+
+        if (!string.IsNullOrWhiteSpace(currentAdminOid) && isAdmin && !isPanelLocked)
+        {
+            _ = AdminLockService.ReleaseAsync(
+                currentAdminOid,
+                CancellationToken.None);
+        }
+    }
+}

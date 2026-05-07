@@ -11,6 +11,109 @@ main {
 .sidebar {
     background-image: linear-gradient(180deg, rgb(5, 39, 103) 0%, #3a0647 70%);
 }
+.side-action-btn {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    min-height: 2.35rem;
+    padding: 0.55rem 0.9rem;
+    border: 1px solid #d7dce5;
+    border-radius: 0.75rem;
+    background: #ffffff;
+    color: #0f172a;
+    font-size: 0.9rem;
+    font-weight: 700;
+    text-decoration: none;
+    cursor: pointer;
+}
+.side-action-danger {
+    background: #dc2626;
+    border-color: #dc2626;
+    color: #fff;
+}
+
+    .side-action-danger:hover {
+        background: #b91c1c;
+    }
+
+.side-admin-menu {
+    display: flex;
+    flex-direction: column;
+    gap: 0.6rem;
+    margin-top: 1rem;
+}
+
+.side-admin-item {
+    display: flex;
+    align-items: center;
+    gap: 0.55rem;
+    width: 100%;
+    padding: 0.65rem 0.75rem;
+    border: 1px: 700;
+    border: 1px solid transparent;
+    text-align: left;
+    cursor: pointer;
+}
+
+    .side-admin-item:hover {
+        background: rgba(37, 99, 235, 0.08);
+    }
+
+    .side-admin-item.active {
+        background: #2563eb;
+        border-color: #2563eb;
+        color: #ffffff;
+    }
+
+    .side-admin-item.disabled {
+        opacity: 0.45;
+        cursor: not-allowed;
+    }
+
+border-radius: 0.75rem;
+background: transparent;
+color: inherit;
+font: inherit;
+
+
+.side-action-danger {
+    background: #dc2626;
+    border-color: #dc2626;
+    color: #ffffff;
+}
+
+    .side-action-danger:hover {
+        background: #b91c1c;
+        border-color: #b91c1c;
+        color: #ffffff;
+    }
+
+    .side-action-btn:hover {
+        background: #f8fafc;
+        color: #0f172a;
+    }
+
+.side-action-primary {
+    background: #2563eb;
+    border-color: #2563eb;
+    color: #ffffff;
+}
+
+    .side-action-primary:hover {
+        background: #1d4ed8;
+        color: #ffffff;
+    }
+
+.side-action-outline {
+    background: #ffffff;
+    border-color: #2563eb;
+    color: #2563eb;
+}
+
+    .side-action-outline:hover {
+        background: #eff6ff;
+        color: #1d4ed8;
+    }
 
 .top-row {
     background-color: #f7f7f7;
@@ -96,3 +199,9 @@ main {
         right: 0.75rem;
         top: 0.5rem;
     }
+.side-admin-message {
+    margin-top: 0.75rem !important;
+    color: #2563eb !important;
+    font-weight: 700;
+    font-size: 0.85rem;
+}

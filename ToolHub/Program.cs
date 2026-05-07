@@ -1,17 +1,36 @@
-using Microsoft.AspNetCore.Authentication.OpenIdConnect;
+ï»¿using Microsoft.AspNetCore.Authentication.OpenIdConnect;
 using Microsoft.Identity.Web;
 using Microsoft.Identity.Web.UI;
 using Microsoft.Graph;
+using Azure.Identity;
 
 var builder = WebApplication.CreateBuilder(args);
 
-// Wczytaj zmienne œrodowiskowe
+// Wczytaj zmienne Å›rodowiskowe
 builder.Configuration.AddEnvironmentVariables();
 
-// Mapowanie ENV ? AzureAd (zostawiasz swoje nazwy w Azure: CLIENT_ID, CLIENT_SECRET, TENANT_ID)
+// Mapowanie ENV ? AzureAd 
 builder.Configuration["AzureAd:ClientId"] = Environment.GetEnvironmentVariable("CLIENT_ID");
 builder.Configuration["AzureAd:TenantId"] = Environment.GetEnvironmentVariable("TENANT_ID");
 builder.Configuration["AzureAd:ClientSecret"] = Environment.GetEnvironmentVariable("CLIENT_SECRET");
+
+//graph app-only
+
+builder.Services.AddSingleton<GraphServiceClient>(sp =>
+{
+    var tenantId = builder.Configuration["AzureAd:TenantId"];
+    var clientId = builder.Configuration["AzureAd:ClientId"];
+    var clientSecret = builder.Configuration["AzureAd:ClientSecret"];
+
+    var credential = new ClientSecretCredential(
+        tenantId,
+        clientId,
+        clientSecret
+    );
+
+    return new GraphServiceClient(credential);
+});
+
 
 builder.Services.AddRazorComponents().AddInteractiveServerComponents();
 builder.Services.AddCascadingAuthenticationState();
@@ -24,6 +43,22 @@ builder.Services
 
 builder.Services.AddAuthorization(o => o.FallbackPolicy = o.DefaultPolicy);
 builder.Services.AddControllersWithViews().AddMicrosoftIdentityUI();
+builder.Services.AddScoped<ToolHub.Infrastructure.SharePoint.SharePointToolRequestService>();
+builder.Services.AddScoped<ToolHub.Infrastructure.SharePoint.SharePointAdminService>();
+builder.Services.AddScoped<ToolHub.Infrastructure.SharePoint.SharePointToolRequestReader>();
+builder.Services.AddScoped<ToolHub.State.AdminRequestState>();
+builder.Services.AddScoped<ToolHub.Infrastructure.SharePoint.SharePointToolApprovalService>();
+builder.Services.AddScoped<ToolHub.Infrastructure.SharePoint.SharePointToolPublishService>();
+builder.Services.AddScoped<ToolHub.Infrastructure.SharePoint.SharePointToolLocationService>();
+builder.Services.AddScoped<ToolHub.Infrastructure.SharePoint.SharePointAdminLockService>();
+builder.Services.AddScoped<ToolHub.Infrastructure.SharePoint.SharePointRejectedArchiveService>();
+builder.Services.AddScoped<ToolHub.State.AdminRequestViewState>();
+builder.Services.AddScoped<ToolHub.Infrastructure.SharePoint.SharePointToolHistoryCleanupService>();
+builder.Services.AddScoped<ToolHub.Infrastructure.SharePoint.SharePointToolDeleteService>();
+builder.Services.AddScoped<ToolHub.Infrastructure.SharePoint.SharePointToolUpdateService>();
+builder.Services.AddSingleton<ToolHub.Infrastructure.SharePoint.ToolCatalogCache>();
+builder.Services.AddHostedService<ToolHub.Infrastructure.SharePoint.ToolCatalogWarmupService>();
+builder.Services.AddScoped<ToolHub.Infrastructure.SharePoint.SharePointToolFavoriteService>();
 
 // Zakresy OIDC + Graph
 builder.Services.Configure<OpenIdConnectOptions>(OpenIdConnectDefaults.AuthenticationScheme, options =>
@@ -37,17 +72,17 @@ builder.Services.Configure<OpenIdConnectOptions>(OpenIdConnectDefaults.Authentic
     options.Scope.Add("User.Read");
 });
 
-// Graph SDK v5 przez TokenCredential (Twoje podejœcie jest poprawne)
-builder.Services.AddScoped<GraphServiceClient>(sp =>
-{
-    var tokenAcquisition = sp.GetRequiredService<ITokenAcquisition>();
-    var credential = new ToolHub.Infrastructure.Auth.TokenAcquisitionCredential(
-        tokenAcquisition, new[] { "User.Read" });
-    return new GraphServiceClient(credential, new[] { "User.Read" });
-});
+// Graph SDK v5 przez TokenCredential
+//builder.Services.AddScoped<GraphServiceClient>(sp =>
+//{
+   // var tokenAcquisition = sp.GetRequiredService<ITokenAcquisition>();
+  //  var credential = new ToolHub.Infrastructure.Auth.TokenAcquisitionCredential(
+ //       tokenAcquisition, new[] { "User.Read" });
+ //   return new GraphServiceClient(credential, new[] { "User.Read" });
+//});
 
-// Rejestracje Twoich serwisów domenowych
-builder.Services.AddScoped<ToolHub.Application.Abstractions.IToolStore, ToolHub.Infrastructure.None.NoneToolStore>();
+// Rejestracje serwisÃ³w domenowych
+builder.Services.AddScoped<ToolHub.Application.Abstractions.IToolStore, ToolHub.Infrastructure.SharePoint.SharePointToolStore>();
 
 // Stany (state) aplikacji
 builder.Services.AddScoped<ToolHub.State.ThemeState>();

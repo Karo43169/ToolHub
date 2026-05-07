@@ -1,0 +1,45 @@
+﻿.tool-card {
+    position: relative;
+}
+
+.favorite-star {
+    position: absolute;
+    top: 14px;
+    right: 14px;
+    z-index: 5;
+    width: 28px;
+    height: 28px;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    border: 0;
+    outline: 0;
+    background: transparent;
+    box-shadow: none;
+    padding: 0;
+    margin: 0;
+    color: #94a3b8;
+    font-size: 20px;
+    line-height: 1;
+    cursor: pointer;
+}
+
+    .favorite-star:hover,
+    .favorite-star.active {
+        color: #f59e0b;
+        background: transparent;
+    }
+
+.favorite-star-list {
+    position: static;
+    width: 26px;
+    height: 26px;
+    margin-right: 8px;
+    flex: 0 0 auto;
+}
+button.favorite-star {
+    border: 0 !important;
+    background: transparent !important;
+    box-shadow: none !important;
+    min-width: 0 !important;
+}

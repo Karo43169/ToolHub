@@ -1,16 +1,31 @@
 ﻿@using ToolHub.Domain.Models
-@inherits LayoutComponentBase
-@inject ToolHub.State.ThemeState Theme
-@inject ToolHub.State.ToolHubState HubState
-@implements IDisposable
-@inject ToolHub.State.CategoryState Categories
-
-@* DODANE: *@
 @using System.Security.Claims
 @using Microsoft.Graph
 @using Microsoft.AspNetCore.Components.Authorization
+@using Microsoft.JSInterop
+@using ToolHub.State
+
+@inherits LayoutComponentBase
+@implements IDisposable
+
+@inject ToolHub.State.AdminRequestState AdminRequestState
+@inject ToolHub.State.AdminRequestViewState AdminRequestViewState
+@inject ToolHub.State.ToolHubState HubState
+@inject ToolHub.State.CategoryState Categories
+
 @inject GraphServiceClient Graph
 @inject AuthenticationStateProvider AuthStateProvider
+@inject IJSRuntime JS
+@inject ToolHub.Infrastructure.SharePoint.ToolCatalogCache ToolCatalogCache
+@inject ToolHub.Infrastructure.SharePoint.SharePointToolRequestService ToolRequestService
+@inject ToolHub.Infrastructure.SharePoint.SharePointAdminService AdminService
+@inject ToolHub.Infrastructure.SharePoint.SharePointToolApprovalService ApprovalService
+@inject ToolHub.Infrastructure.SharePoint.SharePointToolLocationService ToolLocationService
+@inject ToolHub.Infrastructure.SharePoint.SharePointToolDeleteService ToolDeleteService
+@inject ToolHub.Infrastructure.SharePoint.SharePointToolUpdateService ToolUpdateService
+@inject ToolHub.Infrastructure.SharePoint.SharePointAdminLockService AdminLockService
+
+@inject NavigationManager Nav
 
 <div class="app-container">
     <div class="topbar">
@@ -23,17 +38,6 @@
         </div>
 
         <div class="topbar-actions">
-            <button class="icon-btn" @onclick="async () => await Theme.ToggleAsync()"
-                    title="Toggle theme">
-                <svg viewBox="0 0 24 24" class="icon">
-                    <path fill="currentColor"
-                          d="M12 3a9 9 0 100 18
-                 9 9 0 000-18zm0 2
-                 a7 7 0 010 14V5z" />
-                </svg>
-            </button>
-
-            @* === ZMIANA: panel użytkownika / Login w prawym górnym rogu === *@
             <AuthorizeView>
                 <Authorized Context="auth">
                     <div style="display:flex; align-items:center; gap:10px;">
@@ -47,9 +51,9 @@
                         {
                             <div title="@GetDisplayName(auth.User)"
                                  style="width:32px;height:32px;border-radius:50%;
-                                            background:#4F6BED;color:white;
-                                            display:flex;align-items:center;justify-content:center;
-                                            font-weight:600;">
+                                background:#4F6BED;color:white;
+                                display:flex;align-items:center;justify-content:center;
+                                font-weight:600;">
                                 @GetInitials(auth.User)
                             </div>
                         }
@@ -69,71 +73,92 @@
                     <a class="top-btn" href="/MicrosoftIdentity/Account/SignIn">Login</a>
                 </NotAuthorized>
             </AuthorizeView>
-            @* === KONIEC ZMIANY === *@
         </div>
     </div>
 
     <div class="main-grid">
         <div class="left-panel">
-            <h4>Filters</h4>
+            @if (IsAdminPage)
+            {
+                <h4>Administration</h4>
 
-            <div class="filter-header">
-                <button class="clear-btn" @onclick="HubState.ClearFilters">
-                    Clear
-                </button>
-            </div>
-
-            <div class="left-separator"></div>
-
-            <div class="quick-actions">
-                <button class="quick-btn @(HubState.CurrentSort == ToolHub.State.SortMode.LastUpdatedDesc ? "active" : "")"
-                        @onclick="() => HubState.SetSort(ToolHub.State.SortMode.LastUpdatedDesc)"
-                        title="Sort by last updated">
-                    <span class="quick-icon">🔥</span>
-                    <span>Last updated</span>
-                </button>
-
-                <button class="quick-btn" title="Favorites (requires auth)">
-                    <span class="quick-icon">⭐</span>
-                    <span>Favorites</span>
-                </button>
-            </div>
-
-            <div class="filter-section">
-                <div class="filter-title">Category</div>
-
-                <button class="filter-item @(HubState.SelectedCategory is null ? "active" : "")"
-                        @onclick="() => HubState.SetCategory(null)">
-                    All
-                </button>
-
-                @foreach (var c in HubState.AvailableCategories)
-                {
-                    <button class="filter-item @(HubState.SelectedCategory == c ? "active" : "")"
-                            @onclick="() => HubState.SetCategory(c)">
-                        @c
+                <div class="side-admin-menu">
+                    <button class="side-admin-item @(AdminRequestViewState.IsPending ? "active" : "")"
+                            @onclick="ShowPendingRequests">
+                        <span>📥</span>
+                        <span>Pending requests</span>
                     </button>
-                }
-            </div>
 
-            <div class="filter-section">
-                <div class="filter-title">Status</div>
-
-                <button class="filter-item @(HubState.SelectedStatus is null ? "active" : "")"
-                        @onclick="() => HubState.SetStatus(null)">
-                    All
-                </button>
-
-                @foreach (var s in HubState.AvailableStatuses)
-                {
-                    <button class="filter-item @(HubState.SelectedStatus == s ? "active" : "")"
-                            @onclick="() => HubState.SetStatus(s)">
-                        @s
+                    <button class="side-admin-item @(AdminRequestViewState.IsHistory ? "active" : "")"
+                            @onclick="ShowHistory">
+                        <span>🕓</span>
+                        <span>History</span>
                     </button>
-                }
-            </div>
+                </div>
+            }
+            else
+            {
+                <h4>Filters</h4>
+
+                <div class="filter-header">
+                    <button class="clear-btn" @onclick="HubState.ClearFilters">
+                        Clear
+                    </button>
+                </div>
+
+                <div class="left-separator"></div>
+
+                <div class="quick-actions">
+                    <button class="quick-btn @(HubState.CurrentSort == ToolHub.State.SortMode.LastUpdatedDesc && !HubState.FavoritesOnly ? "active" : "")"
+                            @onclick="() => HubState.SetSort(ToolHub.State.SortMode.LastUpdatedDesc)"
+                            title="Sort by last updated">
+                        <span class="quick-icon">🔥</span>
+                        <span>Last updated</span>
+                    </button>
+
+                    <button class="quick-btn @(HubState.FavoritesOnly ? "active" : "")"
+                            title="Favorites"
+                            @onclick="ToggleFavoritesOnlyAsync">
+                        <span class="quick-icon">⭐</span>
+                        <span>Favorites</span>
+                    </button>
+                </div>
+
+                <div class="filter-section">
+                    <div class="filter-title">Category</div>
+
+                    <button class="filter-item @(HubState.SelectedCategory is null ? "active" : "")"
+                            @onclick="() => HubState.SetCategory(null)">
+                        All
+                    </button>
+
+                    @foreach (var c in HubState.AvailableCategories)
+                    {
+                        <button class="filter-item @(HubState.SelectedCategory == c ? "active" : "")"
+                                @onclick="() => HubState.SetCategory(c)">
+                            @c
+                        </button>
+                    }
+                </div>
+
+                <div class="filter-section">
+                    <div class="filter-title">Status</div>
+
+                    <button class="filter-item @(HubState.SelectedStatus is null ? "active" : "")"
+                            @onclick="() => HubState.SetStatus(null)">
+                        All
+                    </button>
+
+                    @foreach (var s in HubState.AvailableStatuses)
+                    {
+                        <button class="filter-item @(HubState.SelectedStatus == s ? "active" : "")"
+                                @onclick="() => HubState.SetStatus(s)">
+                            @s
+                        </button>
+                    }
+                </div>
+            }
         </div>
-
 
         <div class="center-panel">
             @Body
@@ -141,59 +166,302 @@
 
         <div class="right-panel">
             <div class="details-content">
-                <h4>Details</h4>
-
-                @if (HubState.Selected is null)
+                @if (IsAdminPage)
                 {
-                    <div class="muted">Select a tool to see details.</div>
+                    @if (AdminRequestViewState.IsHistory)
+                    {
+                        <h4>History details</h4>
+
+                        @if (AdminRequestState.Selected is null)
+                        {
+                            <div class="side-admin-summary">
+                                <p class="side-admin-label">No history item selected</p>
+                                <h4>Select a history item</h4>
+                                <p>
+                                    Choose an approved or rejected request from the center panel to review audit details.
+                                </p>
+                            </div>
+                        }
+                        else
+                        {
+                            var req = AdminRequestState.Selected!;
+
+                            <div class="side-admin-summary">
+                                <p class="side-admin-label">Request ID</p>
+                                <h4>@req.RequestId</h4>
+                                <span class="@GetAdminStatusClass(req.Status)">@req.Status</span>
+                            </div>
+
+                            <div class="side-admin-summary">
+                                <p class="side-admin-label">Tool</p>
+                                <h4>@req.Tool.Name</h4>
+                                <p>
+                                    <strong>Category:</strong> @req.Tool.Category<br />
+                                    <strong>Version:</strong> @req.Tool.Version<br />
+                                    <strong>Owner:</strong> @req.Tool.Owner
+                                </p>
+                            </div>
+
+                            <div class="side-admin-summary">
+                                <p class="side-admin-label">Requested by</p>
+                                <h4>@req.RequestedByName</h4>
+                                <p>@req.RequestedByEmail</p>
+                            </div>
+
+                            <div class="side-admin-summary">
+                                <p class="side-admin-label">Requested at</p>
+                                <p>@req.RequestedAtUtc.LocalDateTime</p>
+                            </div>
+
+                            <div class="side-admin-summary">
+                                <p class="side-admin-label">Processed by</p>
+                                <h4>@GetProcessedByName(req)</h4>
+                                <p>@GetProcessedAt(req)</p>
+                            </div>
+
+                            @if (IsApproved(req) && !string.IsNullOrWhiteSpace(req.ApprovedToolId))
+                            {
+                                <div class="side-admin-summary">
+                                    <p class="side-admin-label">Approved tool</p>
+                                    <h4>@req.ApprovedToolId</h4>
+                                </div>
+                            }
+
+                            @if (IsRejected(req) && !string.IsNullOrWhiteSpace(req.RejectedFolderUrl))
+                            {
+                                <div class="side-admin-summary">
+                                    <p class="side-admin-label">Rejected files</p>
+                                    <a class="side-action-btn side-action-outline"
+                                           href="@req.RejectedFolderUrl"
+                                           target="_blank">
+                                        Open rejected folder
+                                    </a>
+                                </div>
+                            }
+
+                            <div class="side-admin-summary">
+                                <p class="side-admin-label">Description</p>
+                                <p>@req.Tool.Description</p>
+                            </div>
+                        }
+                    }
+                    else
+                    {
+                        <h4>Request details</h4>
+
+                        @if (AdminRequestState.Selected is null)
+                        {
+                            <div class="side-admin-summary">
+                                <p class="side-admin-label">No request selected</p>
+                                <h4>Select a request</h4>
+
+                                <p>
+                                    Choose a request from the center panel to review metadata,
+                                    open the upload folder and continue with approval or rejection.
+                                </p>
+
+                                @if (!string.IsNullOrWhiteSpace(adminActionMessage))
+                                {
+                                    <p class="side-admin-message">
+                                        @adminActionMessage
+                                    </p>
+                                }
+                            </div>
+                        }
+                        else
+                        {
+                            var req = AdminRequestState.Selected!;
+
+                            <div class="side-admin-summary">
+                                <p class="side-admin-label">Request ID</p>
+                                <h4>@req.RequestId</h4>
+
+                                <span class="request-status">@req.Status</span>
+                            </div>
+
+                            <div class="side-admin-summary">
+                                <p class="side-admin-label">Tool</p>
+                                <h4>@req.Tool.Name</h4>
+
+                                <p>
+                                    <strong>Category:</strong> @req.Tool.Category<br />
+                                    <strong>Version:</strong> @req.Tool.Version<br />
+                                    <strong>Owner:</strong> @req.Tool.Owner
+                                </p>
+                            </div>
+
+                            <div class="side-admin-summary">
+                                <p class="side-admin-label">Requested by</p>
+                                <h4>@req.RequestedByName</h4>
+
+                                <p>@req.RequestedByEmail</p>
+                            </div>
+
+                            <div class="side-admin-summary">
+                                <p class="side-admin-label">Requested at</p>
+                                <p>@req.RequestedAtUtc.LocalDateTime</p>
+                            </div>
+
+                            <div class="side-admin-summary">
+                                <p class="side-admin-label">Description</p>
+                                <p>@req.Tool.Description</p>
+                            </div>
+
+                            @if (!string.IsNullOrWhiteSpace(req.ApplicationReqFolderUrl))
+                            {
+                                <div class="side-admin-summary">
+                                    <p class="side-admin-label">Uploaded files</p>
+
+                                    <a class="side-action-btn side-action-outline"
+                                           href="@req.ApplicationReqFolderUrl"
+                                           target="_blank">
+                                        Open files folder
+                                    </a>
+                                </div>
+                            }
+
+                            <div class="side-admin-summary">
+                                <p class="side-admin-label">Actions</p>
+
+                                <button class="side-action-btn side-action-primary"
+                                        disabled="@isProcessingRequest"
+                                        @onclick="ApproveSelectedRequest">
+                                    @(isProcessingRequest ? "Processing..." : "Approve request")
+                                </button>
+
+                                <button class="side-action-btn side-action-danger"
+                                        disabled="@isProcessingRequest"
+                                        @onclick="RejectSelectedRequest">
+                                    @(isProcessingRequest ? "Processing..." : "Reject request")
+                                </button>
+
+                                @if (!string.IsNullOrWhiteSpace(adminActionMessage))
+                                {
+                                    <p class="side-admin-message">
+                                        @adminActionMessage
+                                    </p>
+                                }
+                            </div>
+                        }
+                    }
                 }
                 else
                 {
-                    <div class="details-title">@HubState.Selected.Name</div>
-                    <div class="details-meta">
-                        @HubState.Selected.Category · @HubState.Selected.Status · @HubState.Selected.Version
-                    </div>
+                    <h4>Details</h4>
 
-                    <div class="details-desc">@HubState.Selected.Description</div>
+                    @if (HubState.Selected is null)
+                    {
+                        <div class="muted">Select a tool to see details.</div>
+                    }
+                    else
+                    {
+                        <div class="details-title">@HubState.Selected.Name</div>
 
-                    <div class="details-section">
-                        <div class="details-label">Owner</div>
-                        <div>@HubState.Selected.Owner</div>
-                    </div>
+                        <div class="details-meta">
+                            @HubState.Selected.Category · @HubState.Selected.Status · @HubState.Selected.Version
+                        </div>
 
-                    <div class="details-section">
-                        <div class="details-label">Tool location</div>
-                        <div class="mono-wrap">@HubState.Selected.ToolFolderPath</div>
-                    </div>
+                        <div class="details-desc">
+                            @HubState.Selected.Description
+                        </div>
 
-                    <div class="details-actions">
-                        <button class="top-btn">Open location</button>
-                    </div>
+                        <div class="details-section">
+                            <div class="details-label">Owner</div>
+                            <div>@HubState.Selected.Owner</div>
+                        </div>
 
-                    <div class="details-section">
-                        <div class="details-label">Last update</div>
-                        <div>@HubState.Selected.UpdatedByName · @HubState.Selected.UpdatedAtUtc.LocalDateTime</div>
-                    </div>
+                        <div class="details-section">
+                            <div class="details-label">Tool location</div>
+                            <div class="mono-wrap">@HubState.Selected.ToolFolderPath</div>
+                        </div>
 
-                    <div class="details-section">
-                        <div class="details-label">Tags</div>
-                        <div class="tag-row">
-                            @foreach (var tag in HubState.Selected.Tags)
+                        <div class="details-actions">
+                            <button class="top-btn"
+                                    disabled="@isOpeningToolLocation"
+                                    @onclick="OpenSelectedToolLocation">
+                                @(isOpeningToolLocation ? "Opening..." : "Open location")
+                            </button>
+
+                            @if (isAdmin)
                             {
-                                <span class="tag">@tag</span>
+                                <button class="side-action-btn side-action-outline"
+                                        disabled="@isSavingToolMetadata"
+                                        @onclick="OpenEditToolWithLockAsync">
+                                    Edit tool
+                                </button>
+
+                                <button class="side-action-btn side-action-danger"
+                                        disabled="@isDeletingTool"
+                                        @onclick="DeleteSelectedToolAsync">
+                                    @(isDeletingTool ? "Deleting..." : "Delete tool")
+                                </button>
                             }
                         </div>
-                    </div>
+
+                        @if (!string.IsNullOrWhiteSpace(toolLocationMessage))
+                        {
+                            <div class="details-section">
+                                <div class="details-label">Location status</div>
+                                <div>@toolLocationMessage</div>
+                            </div>
+                        }
+
+                        @if (!string.IsNullOrWhiteSpace(toolDeleteMessage))
+                        {
+                            <div class="details-section">
+                                <div class="details-label">Delete status</div>
+                                <div>@toolDeleteMessage</div>
+                            </div>
+                        }
+
+                        @if (!string.IsNullOrWhiteSpace(toolEditMessage))
+                        {
+                            <div class="details-section">
+                                <div class="details-label">Edit status</div>
+                                <div>@toolEditMessage</div>
+                            </div>
+                        }
+
+                        <div class="details-section">
+                            <div class="details-label">Last update</div>
+                            <div>
+                                @HubState.Selected.UpdatedByName · @HubState.Selected.UpdatedAtUtc.LocalDateTime
+                            </div>
+                        </div>
+
+                        <div class="details-section">
+                            <div class="details-label">Tags</div>
+
+                            <div class="tag-row">
+                                @foreach (var tag in HubState.Selected.Tags)
+                                {
+                                    <span class="tag">@tag</span>
+                                }
+                            </div>
+                        </div>
+                    }
                 }
             </div>
 
             <div class="details-footer">
-                <button class="top-btn" @onclick="OpenAdd">Add</button>
-
-                @if (HubState.Selected != null)
+                @if (IsAdminPage)
                 {
-                    <button class="top-btn" @onclick="OpenEdit">Edit</button>
-                    <button class="top-btn danger" @onclick="DeleteSelected">Delete</button>
+                    <button class="side-action-btn side-action-primary" @onclick="GoHome">
+                        ← Back to Tool Library
+                    </button>
+                }
+                else
+                {
+                    <button class="side-action-btn" @onclick="OpenAdd">
+                        Add
+                    </button>
+
+                    @if (isAdmin)
+                    {
+                        <a class="side-action-btn side-action-outline" href="/admin">
+                            Administration
+                        </a>
+                    }
                 }
             </div>
         </div>
@@ -259,59 +527,78 @@
             }
 
             <div class="modal-actions">
-                <button class="top-btn" @onclick="Save">Save</button>
-                <button class="top-btn" @onclick="() => showModal = false">Cancel</button>
+                <button class="top-btn" disabled="@isSavingToolMetadata" @onclick="Save">
+                    @(isSavingToolMetadata ? "Saving..." : "Save")
+                </button>
+                <button class="top-btn" @onclick="CancelModalAsync">Cancel</button>
             </div>
         </div>
     </div>
 }
 
 @code {
-    protected override async Task OnAfterRenderAsync(bool firstRender)
-    {
-        if (firstRender)
-        {
-            // Pobierz zdjęcie tylko gdy user jest zalogowany
-            var state = await AuthStateProvider.GetAuthenticationStateAsync();
-            if (state.User?.Identity?.IsAuthenticated == true)
-            {
-                await TryLoadProfilePhotoAsync();
-            }
-        }
-    }
+    private bool isAdmin = false;
+    private bool showModal = false;
+    private bool isEdit = false;
 
-    private async Task TryLoadProfilePhotoAsync()
-    {
-        if (_photoLoaded) return;
-        try
-        {
-            // Graph SDK v5 – bez .Request()
-            using var stream = await Graph.Me.Photo.Content.GetAsync();
-            if (stream != null)
-            {
-                using var ms = new MemoryStream();
-                await stream.CopyToAsync(ms);
-                var base64 = Convert.ToBase64String(ms.ToArray());
-                _photoDataUrl = $"data:image/jpeg;base64,{base64}";
-            }
-        }
-        catch
-        {
-            // brak zdjęcia lub brak uprawnień — pokaż inicjały
-        }
-        finally
-        {
-            _photoLoaded = true;
-            StateHasChanged();
-        }
-    }
+    private bool isProcessingRequest = false;
+    private string? adminActionMessage;
+
+    private bool isOpeningToolLocation = false;
+    private string? toolLocationMessage;
+
+    private bool isDeletingTool = false;
+    private string? toolDeleteMessage;
+
+    private bool isSavingToolMetadata = false;
+    private string? toolEditMessage;
+    private bool isAdminEditLockHeld = false;
+    private string currentAdminOid = "";
+    private string currentAdminName = "";
 
     private bool _photoLoaded = false;
     private string? _photoDataUrl;
 
+    private string editName = "";
+    private string editCategory = "";
+    private string editOwner = "";
+    private string editStatus = "Active";
+    private string editVersion = "1.0.0";
+    private string editDescription = "";
+    private string editTags = "";
+
+    private bool IsAdminPage =>
+        Nav.ToBaseRelativePath(Nav.Uri)
+            .Trim('/')
+            .Equals("admin", StringComparison.OrdinalIgnoreCase);
+
     protected override void OnInitialized()
     {
         HubState.Changed += OnHubStateChanged;
+        AdminRequestState.Changed += OnHubStateChanged;
+        AdminRequestViewState.Changed += OnHubStateChanged;
+    }
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (!firstRender)
+            return;
+
+        var state = await AuthStateProvider.GetAuthenticationStateAsync();
+
+        if (state.User?.Identity?.IsAuthenticated == true)
+        {
+            currentAdminOid = GetOid(state.User);
+            currentAdminName = GetDisplayName(state.User);
+
+            isAdmin = await AdminService.IsAdminAsync(
+                currentAdminOid,
+                CancellationToken.None);
+
+            await TryLoadProfilePhotoAsync();
+
+            await InvokeAsync(StateHasChanged);
+        }
     }
 
     private void OnHubStateChanged()
@@ -322,10 +609,74 @@
     public void Dispose()
     {
         HubState.Changed -= OnHubStateChanged;
+        AdminRequestState.Changed -= OnHubStateChanged;
+        AdminRequestViewState.Changed -= OnHubStateChanged;
+
+        if (isAdminEditLockHeld && !string.IsNullOrWhiteSpace(currentAdminOid))
+        {
+            _ = AdminLockService.ReleaseAsync(
+                currentAdminOid,
+                CancellationToken.None);
+        }
     }
 
-    private bool showModal = false;
-    private bool isEdit = false;
+    private void ShowPendingRequests()
+    {
+        AdminRequestState.Clear();
+        AdminRequestViewState.SetPending();
+    }
+
+    private void ShowHistory()
+    {
+        AdminRequestState.Clear();
+        AdminRequestViewState.SetHistory();
+    }
+
+    private async Task ToggleFavoritesOnlyAsync()
+    {
+        var authState = await AuthStateProvider.GetAuthenticationStateAsync();
+        var userOid = GetOid(authState.User);
+
+        if (string.IsNullOrWhiteSpace(userOid))
+            return;
+
+        await HubState.LoadFavoritesAsync(userOid);
+        HubState.ToggleFavoritesOnly();
+    }
+
+    private void GoHome()
+    {
+        Nav.NavigateTo("/");
+    }
+
+    private async Task TryLoadProfilePhotoAsync()
+    {
+        if (_photoLoaded)
+            return;
+
+        try
+        {
+            using var stream = await Graph.Me.Photo.Content.GetAsync();
+
+            if (stream != null)
+            {
+                using var ms = new MemoryStream();
+                await stream.CopyToAsync(ms);
+
+                var base64 = Convert.ToBase64String(ms.ToArray());
+                _photoDataUrl = $"data:image/jpeg;base64,{base64}";
+            }
+        }
+        catch
+        {
+            // Brak zdjęcia lub brak uprawnień — pokazujemy inicjały.
+        }
+        finally
+        {
+            _photoLoaded = true;
+            await InvokeAsync(StateHasChanged);
+        }
+    }
 
     private void OpenAdd()
     {
@@ -342,9 +693,17 @@
         showModal = true;
     }
 
-    private void OpenEdit()
+    private async Task OpenEditToolWithLockAsync()
     {
+        if (!isAdmin)
+            return;
+
         if (HubState.Selected is null)
+            return;
+
+        var acquired = await TryAcquireAdminEditLockAsync();
+
+        if (!acquired)
             return;
 
         isEdit = true;
@@ -360,74 +719,359 @@
         showModal = true;
     }
 
-    private void DeleteSelected()
+    private async Task<bool> TryAcquireAdminEditLockAsync()
     {
-        if (HubState.Selected != null)
-            HubState.Delete(HubState.Selected.Id);
+        if (string.IsNullOrWhiteSpace(currentAdminOid))
+        {
+            var authState = await AuthStateProvider.GetAuthenticationStateAsync();
+            currentAdminOid = GetOid(authState.User);
+            currentAdminName = GetDisplayName(authState.User);
+        }
+
+        var lockResult = await AdminLockService.TryAcquireAsync(
+            currentAdminOid,
+            currentAdminName,
+            CancellationToken.None);
+
+        if (!lockResult.IsAcquired)
+        {
+            toolEditMessage = lockResult.Message ?? "Administration lock is currently held by another administrator.";
+            await InvokeAsync(StateHasChanged);
+            return false;
+        }
+
+        isAdminEditLockHeld = true;
+        toolEditMessage = null;
+        return true;
     }
 
-    private string editName = "";
-    private string editCategory = "";
-    private string editOwner = "";
-    private string editStatus = "Active";
-    private string editVersion = "1.0.0";
-    private string editDescription = "";
-    private string editTags = "";
+    private async Task ReleaseAdminEditLockAsync()
+    {
+        if (!isAdminEditLockHeld)
+            return;
 
-    private void Save()
+        isAdminEditLockHeld = false;
+
+        if (!string.IsNullOrWhiteSpace(currentAdminOid))
+        {
+            await AdminLockService.ReleaseAsync(
+                currentAdminOid,
+                CancellationToken.None);
+        }
+    }
+
+    private async Task CancelModalAsync()
+    {
+        showModal = false;
+
+        if (isEdit)
+        {
+            isEdit = false;
+            await ReleaseAdminEditLockAsync();
+        }
+    }
+
+    private async Task Save()
     {
         if (string.IsNullOrWhiteSpace(editName))
             return;
 
-        var tags = editTags
-            .Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries)
-            .ToList();
-
         if (isEdit && HubState.Selected != null)
         {
-            var updated = HubState.Selected with
+            if (!isAdminEditLockHeld)
             {
-                Name = editName,
-                Category = editCategory,
-                Owner = editOwner,
-                Status = editStatus,
-                Version = editVersion,
-                Description = editDescription,
-                Tags = tags,
-                UpdatedAtUtc = DateTimeOffset.UtcNow,
-                UpdatedByName = "Dev User"
-            };
+                toolEditMessage = "Edit lock is not active. Please open edit mode again.";
+                return;
+            }
 
-            HubState.Update(updated);
+            try
+            {
+                isSavingToolMetadata = true;
+                toolEditMessage = null;
+
+                var authState = await AuthStateProvider.GetAuthenticationStateAsync();
+                var user = authState.User;
+
+                var updated = await ToolUpdateService.UpdateAsync(
+                    HubState.Selected,
+                    new ToolHub.Infrastructure.SharePoint.ToolUpdateInput(
+                        Name: editName,
+                        Category: editCategory,
+                        Owner: editOwner,
+                        Status: editStatus,
+                        Version: editVersion,
+                        Description: editDescription,
+                        Tags: editTags),
+                    GetOid(user),
+                    GetDisplayName(user),
+                    CancellationToken.None);
+
+                
+                HubState.Update(updated);
+                ToolCatalogCache.RefreshInBackground();
+
+                toolEditMessage = $"Updated: {updated.Name}";
+                showModal = false;
+            }
+            catch (Exception ex)
+            {
+                toolEditMessage = $"Update failed: {ex.Message}";
+            }
+            finally
+            {
+                isSavingToolMetadata = false;
+                isEdit = false;
+                await ReleaseAdminEditLockAsync();
+                await InvokeAsync(StateHasChanged);
+            }
+
+            return;
         }
-        else
-        {
-            var newId = Guid.NewGuid().ToString("N");
-            var toolFolderPath = $"tools/{newId}";
 
-            var newTool = new ToolEntry(
-                Id: newId,
+        var authStateAdd = await AuthStateProvider.GetAuthenticationStateAsync();
+        var addUser = authStateAdd.User;
+
+        var result = await ToolRequestService.CreateAsync(
+            new ToolHub.Infrastructure.SharePoint.CreateToolRequestInput(
                 Name: editName,
                 Category: editCategory,
                 Owner: editOwner,
                 Status: editStatus,
                 Version: editVersion,
                 Description: editDescription,
-                Tags: tags,
-                ToolFolderPath: toolFolderPath,
-                ManualPath: null,
-                UpdatedAtUtc: DateTimeOffset.UtcNow,
-                UpdatedByOid: "dev",
-                UpdatedByName: "Dev User"
-            );
-
-            HubState.Add(newTool);
-        }
+                Tags: editTags,
+                RequestedByOid: GetOid(addUser),
+                RequestedByName: GetDisplayName(addUser),
+                RequestedByEmail: GetEmail(addUser)
+            ),
+            CancellationToken.None);
 
         showModal = false;
+
+        await InvokeAsync(StateHasChanged);
+        await Task.Yield();
+
+        await JS.InvokeVoidAsync("open", result.FolderUrl, "_blank");
     }
 
-    // ===== Pomocnicze metody do wyświetlania danych użytkownika =====
+    private async Task ApproveSelectedRequest()
+    {
+        if (AdminRequestState.Selected is null)
+            return;
+
+        if (isProcessingRequest)
+            return;
+
+        try
+        {
+            isProcessingRequest = true;
+            adminActionMessage = null;
+
+            var authState = await AuthStateProvider.GetAuthenticationStateAsync();
+            var user = authState.User;
+
+            var approvedByOid = GetOid(user);
+            var approvedByName = GetDisplayName(user);
+
+            var selectedRequest = AdminRequestState.Selected!;
+
+            var approvedTool = await ApprovalService.ApproveAsync(
+                selectedRequest,
+                approvedByOid,
+                approvedByName,
+                CancellationToken.None);
+
+            await ApprovalService.MarkApprovedAsync(
+                selectedRequest,
+                approvedTool,
+                approvedByOid,
+                approvedByName,
+                CancellationToken.None);
+
+            
+            HubState.Add(approvedTool);
+            ToolCatalogCache.RefreshInBackground();
+
+
+            AdminRequestState.Clear();
+            AdminRequestState.RequestRefresh();
+
+            adminActionMessage = $"Approved: {approvedTool.Name}";
+        }
+        catch (Exception ex)
+        {
+            adminActionMessage = $"Approve failed: {ex.Message}";
+        }
+        finally
+        {
+            isProcessingRequest = false;
+            await InvokeAsync(StateHasChanged);
+        }
+    }
+
+    private async Task RejectSelectedRequest()
+    {
+        if (AdminRequestState.Selected is null)
+            return;
+
+        if (isProcessingRequest)
+            return;
+
+        try
+        {
+            isProcessingRequest = true;
+            adminActionMessage = null;
+
+            var authState = await AuthStateProvider.GetAuthenticationStateAsync();
+            var user = authState.User;
+
+            var rejectedByOid = GetOid(user);
+            var rejectedByName = GetDisplayName(user);
+
+            var selectedRequest = AdminRequestState.Selected!;
+
+            await ApprovalService.MarkRejectedAsync(
+                selectedRequest,
+                rejectedByOid,
+                rejectedByName,
+                CancellationToken.None);
+
+            AdminRequestState.Clear();
+            AdminRequestState.RequestRefresh();
+
+            adminActionMessage = $"Rejected: {selectedRequest.Tool.Name}";
+        }
+        catch (Exception ex)
+        {
+            adminActionMessage = $"Reject failed: {ex.Message}";
+        }
+        finally
+        {
+            isProcessingRequest = false;
+            await InvokeAsync(StateHasChanged);
+        }
+    }
+
+    private async Task OpenSelectedToolLocation()
+    {
+        if (HubState.Selected is null)
+            return;
+
+        if (isOpeningToolLocation)
+            return;
+
+        try
+        {
+            isOpeningToolLocation = true;
+            toolLocationMessage = null;
+
+            var webUrl = await ToolLocationService.GetFolderWebUrlAsync(
+                HubState.Selected.ToolFolderPath,
+                CancellationToken.None);
+
+            await JS.InvokeVoidAsync("open", webUrl, "_blank");
+        }
+        catch (Exception ex)
+        {
+            toolLocationMessage = $"Open location failed: {ex.Message}";
+        }
+        finally
+        {
+            isOpeningToolLocation = false;
+            await InvokeAsync(StateHasChanged);
+        }
+    }
+
+    private async Task DeleteSelectedToolAsync()
+    {
+        if (!isAdmin)
+            return;
+
+        if (HubState.Selected is null)
+            return;
+
+        if (isDeletingTool)
+            return;
+
+        var selectedTool = HubState.Selected;
+
+        var confirmed = await JS.InvokeAsync<bool>(
+            "confirm",
+            $"This will permanently delete tool '{selectedTool.Name}' from Tool Hub and delete its Application Source folder. Continue?");
+
+        if (!confirmed)
+            return;
+
+        var lockAcquired = await TryAcquireAdminEditLockAsync();
+
+        if (!lockAcquired)
+            return;
+
+        try
+        {
+            isDeletingTool = true;
+            toolDeleteMessage = null;
+
+            await ToolDeleteService.DeleteAsync(
+                selectedTool,
+                CancellationToken.None);
+
+            
+            HubState.Delete(selectedTool.Id);
+            ToolCatalogCache.RefreshInBackground();
+
+            toolDeleteMessage = $"Deleted: {selectedTool.Name}";
+        }
+        catch (Exception ex)
+        {
+            toolDeleteMessage = $"Delete failed: {ex.Message}";
+        }
+        finally
+        {
+            isDeletingTool = false;
+            await ReleaseAdminEditLockAsync();
+            await InvokeAsync(StateHasChanged);
+        }
+    }
+
+    private static bool IsApproved(ToolRequestEntry request)
+    {
+        return string.Equals(request.Status, "Approved", StringComparison.OrdinalIgnoreCase);
+    }
+
+    private static bool IsRejected(ToolRequestEntry request)
+    {
+        return string.Equals(request.Status, "Rejected", StringComparison.OrdinalIgnoreCase);
+    }
+
+    private static string GetAdminStatusClass(string status)
+    {
+        if (string.Equals(status, "Approved", StringComparison.OrdinalIgnoreCase))
+            return "request-status request-status-approved";
+
+        if (string.Equals(status, "Rejected", StringComparison.OrdinalIgnoreCase))
+            return "request-status request-status-rejected";
+
+        return "request-status";
+    }
+
+    private static string GetProcessedAt(ToolRequestEntry request)
+    {
+        var processedAt = IsApproved(request)
+            ? request.ApprovedAtUtc
+            : request.RejectedAtUtc;
+
+        return processedAt?.LocalDateTime.ToString() ?? "-";
+    }
+
+    private static string GetProcessedByName(ToolRequestEntry request)
+    {
+        if (IsApproved(request))
+            return string.IsNullOrWhiteSpace(request.ApprovedByName) ? "-" : request.ApprovedByName!;
+
+        return string.IsNullOrWhiteSpace(request.RejectedByName) ? "-" : request.RejectedByName!;
+    }
+
     private static string GetDisplayName(ClaimsPrincipal user)
     {
         return user?.FindFirst("name")?.Value
@@ -445,14 +1089,34 @@
     private static string GetInitials(ClaimsPrincipal user)
     {
         var name = GetDisplayName(user)?.Trim() ?? "";
-        if (string.IsNullOrEmpty(name)) return "?";
+
+        if (string.IsNullOrEmpty(name))
+            return "?";
 
         var parts = name.Split(' ', StringSplitOptions.RemoveEmptyEntries);
-        if (parts.Length == 1)
-            return parts[0].Substring(0, Math.Min(2, parts[0].Length)).ToUpperInvariant();
 
-        var c1 = parts[0].Length > 0 ? parts[0][0].ToString().ToUpperInvariant() : "";
-        var c2 = parts[1].Length > 0 ? parts[1][0].ToString().ToUpperInvariant() : "";
+        if (parts.Length == 1)
+        {
+            return parts[0]
+                .Substring(0, Math.Min(2, parts[0].Length))
+                .ToUpperInvariant();
+        }
+
+        var c1 = parts[0].Length > 0
+            ? parts[0][0].ToString().ToUpperInvariant()
+            : "";
+
+        var c2 = parts.Length > 1 && parts[1].Length > 0
+            ? parts[1][0].ToString().ToUpperInvariant()
+            : "";
+
         return $"{c1}{c2}";
+    }
+
+    private static string GetOid(ClaimsPrincipal user)
+    {
+        return user.FindFirst("http://schemas.microsoft.com/identity/claims/objectidentifier")?.Value
+            ?? user.FindFirst("oid")?.Value
+            ?? "";
     }
 }

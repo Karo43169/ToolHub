@@ -10,7 +10,7 @@
 
   <ItemGroup>
     <Folder Include="Application\Services\" />
-    <Folder Include="Infrastructure\SharePoint\" />
+    <Folder Include="Controllers\" />
   </ItemGroup>
 
   <ItemGroup>
