@@ -1,4 +1,4 @@
-﻿@using ToolHub.Domain.Models
+@using ToolHub.Domain.Models
 @using System.Security.Claims
 @using Microsoft.Graph
 @using Microsoft.AspNetCore.Components.Authorization
@@ -38,6 +38,7 @@
         </div>
 
         <div class="topbar-actions">
+            <button class="top-btn" title="Contact support" @onclick="ShowContact">ℹ️</button>
             <AuthorizeView>
                 <Authorized Context="auth">
                     <div style="display:flex; align-items:center; gap:10px;">
@@ -536,6 +537,25 @@
     </div>
 }
 
+@if (showContact)
+{
+    <div class="modal-overlay">
+        <div class="modal-box">
+            <h3>Contact Support</h3>
+
+            <p>If you need assistance, please contact the administrators:</p>
+            <ul>
+                <li><a href="mailto:Kacper.Kacprowicz@durr.com">Kacper.Kacprowicz@durr.com</a></li>
+                <li><a href="mailto:Karol.Snochowski@durr.com">Karol.Snochowski@durr.com</a></li>
+            </ul>
+
+            <div class="modal-actions">
+                <button class="top-btn" @onclick="CloseContact">Close</button>
+            </div>
+        </div>
+    </div>
+}
+
 @code {
     private bool isAdmin = false;
     private bool showModal = false;
@@ -558,6 +578,8 @@
 
     private bool _photoLoaded = false;
     private string? _photoDataUrl;
+
+    private bool showContact = false;
 
     private string editName = "";
     private string editCategory = "";
@@ -1118,5 +1140,15 @@
         return user.FindFirst("http://schemas.microsoft.com/identity/claims/objectidentifier")?.Value
             ?? user.FindFirst("oid")?.Value
             ?? "";
+    }
+
+    private void ShowContact()
+    {
+        showContact = true;
+    }
+
+    private void CloseContact()
+    {
+        showContact = false;
     }
 }
