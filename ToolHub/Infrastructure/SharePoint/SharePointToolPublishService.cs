@@ -56,19 +56,33 @@ public sealed class SharePointToolPublishService
         if (applicationSourceRoot?.Id is null)
             throw new InvalidOperationException($"Application Source folder was not found: {ApplicationSourceRoot}");
 
+        // Sanityzuj nazwę folderu ostatecznie przed przeniesieniem (usuń niedozwolone znaki, końcowe kropki itp.)
+        var finalPublishedFolderName = ToSafeSharePointSegment(publishedFolderName);
+        if (string.IsNullOrWhiteSpace(finalPublishedFolderName))
+            finalPublishedFolderName = "tool";
+
         var moveRequest = new DriveItem
         {
-            Name = publishedFolderName,
+            Name = finalPublishedFolderName,
             ParentReference = new ItemReference
             {
                 Id = applicationSourceRoot.Id
             }
         };
 
-        var publishedFolder = await _graph
-            .Drives[DriveId]
-            .Items[sourceFolder.Id]
-            .PatchAsync(moveRequest, cancellationToken: ct);
+        DriveItem? publishedFolder = null;
+        try
+        {
+            publishedFolder = await _graph
+                .Drives[DriveId]
+                .Items[sourceFolder.Id]
+                .PatchAsync(moveRequest, cancellationToken: ct);
+        }
+        catch (Exception ex)
+        {
+            // Rzucamy bardziej opisowy wyjątek by front-end mógł pokazać sensowny komunikat i logi były czytelne.
+            throw new InvalidOperationException($"Failed to move request folder to published location. Name='{finalPublishedFolderName}'. See inner exception for details.", ex);
+        }
 
         return new PublishedToolLocation(
             FolderName: publishedFolderName,
@@ -98,7 +112,7 @@ public sealed class SharePointToolPublishService
             .Trim('/');
     }
 
-    private static string ToSafeSharePointSegment(string value)
+    public static string ToSafeSharePointSegment(string value)
     {
         if (string.IsNullOrWhiteSpace(value))
             return string.Empty;
@@ -135,10 +149,28 @@ public sealed class SharePointToolPublishService
             }
         }
 
-        return builder
+        // Final cleanup: remove leading/trailing separators and trailing dots/spaces which SharePoint rejects.
+        var result = builder
             .ToString()
             .Trim('-')
             .Normalize(NormalizationForm.FormC);
+
+        // Remove trailing dots and spaces (SharePoint disallows names ending with a dot or space)
+        result = result.TrimEnd(' ', '.');
+
+        // Collapse multiple dots at the end or multiple separators
+        while (result.EndsWith(".."))
+            result = result.TrimEnd('.');
+
+        // If result is empty now, fallback to safe token
+        if (string.IsNullOrWhiteSpace(result))
+            return string.Empty;
+
+        // Trim length to a safe maximum (128)
+        if (result.Length > 128)
+            result = result.Substring(0, 128).TrimEnd(' ', '.');
+
+        return result;
     }
 }
 

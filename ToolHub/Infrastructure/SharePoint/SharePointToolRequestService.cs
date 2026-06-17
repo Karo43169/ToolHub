@@ -18,6 +18,33 @@ public sealed class SharePointToolRequestService
     private const string RequestJsonRoot =
         "Platform Components/Application Components/request";
 
+    // Niedozwolone znaki i prosty sanitizer dla nazw SharePoint/OneDrive
+    private static readonly char[] SharePointIllegalChars = new[] { '"', '*', ':', '<', '>', '?', '/', '\\', '|', '#', '%', '&', '{', '}', '~' };
+    private static readonly HashSet<string> ReservedNames = new(StringComparer.OrdinalIgnoreCase)
+    {
+        "CON","PRN","AUX","NUL",
+        "COM1","COM2","COM3","COM4","COM5","COM6","COM7","COM8","COM9",
+        "LPT1","LPT2","LPT3","LPT4","LPT5","LPT6","LPT7","LPT8","LPT9"
+    };
+
+    private static string SanitizeSharePointName(string name, string fallback = "item")
+    {
+        if (string.IsNullOrWhiteSpace(name)) return fallback;
+        var sb = new System.Text.StringBuilder();
+        foreach (var ch in name)
+        {
+            sb.Append(Array.IndexOf(SharePointIllegalChars, ch) >= 0 ? '-' : ch);
+        }
+        var outName = sb.ToString().Trim();
+        // Usuń końcowe spacje i kropki
+        outName = outName.TrimEnd(' ', '.');
+        if (string.IsNullOrWhiteSpace(outName) || ReservedNames.Contains(outName))
+            return $"{fallback}-{DateTime.UtcNow:yyyyMMddHHmmss}";
+        if (outName.Length > 128)
+            outName = outName.Substring(0, 128);
+        return outName;
+    }
+
     public SharePointToolRequestService(GraphServiceClient graph)
     {
         _graph = graph;
@@ -29,6 +56,8 @@ public sealed class SharePointToolRequestService
     {
         var requestId = $"REQ-{DateTime.UtcNow:yyyy-MM-dd-HHmmss}";
 
+        var sanitizedFolderName = SanitizeSharePointName(requestId);
+
         var folder = await _graph
             .Drives[DriveId]
             .Root
@@ -36,7 +65,7 @@ public sealed class SharePointToolRequestService
             .Children
             .PostAsync(new DriveItem
             {
-                Name = requestId,
+                Name = sanitizedFolderName,
                 Folder = new Folder()
             }, cancellationToken: ct);
 
@@ -51,7 +80,7 @@ public sealed class SharePointToolRequestService
             requestedByName = input.RequestedByName,
             requestedByEmail = input.RequestedByEmail,
 
-            applicationReqFolder = $"{ApplicationReqRoot}/{requestId}",
+            applicationReqFolder = $"{ApplicationReqRoot}/{sanitizedFolderName}",
             applicationReqFolderUrl = folder?.WebUrl,
 
             tool = new
