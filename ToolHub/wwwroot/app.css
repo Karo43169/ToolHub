@@ -1503,15 +1503,15 @@ font: inherit;
 }
 
 .side-admin-summary .side-admin-label {
-    font-weight: 800;
-    color: #374151;
+    font-weight: 800 !important;
+    color: #374151 !important;
     margin-bottom: 6px;
 }
 
 .side-admin-summary h4,
 .side-admin-summary p strong {
-    color: #0f172a;
-    font-weight: 700;
+    color: #0f172a !important;
+    font-weight: 700 !important;
 }
 
 .side-admin-message {
