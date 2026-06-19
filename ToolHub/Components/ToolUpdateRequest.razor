@@ -1,0 +1,244 @@
+@using System.Security.Claims
+@using Microsoft.AspNetCore.Components.Authorization
+@using Microsoft.JSInterop
+@using ToolHub.Domain.Models
+@using ToolHub.Infrastructure.SharePoint
+@inject SharePointToolRequestService RequestService
+@inject SharePointToolLocationService ToolLocationService
+@inject AuthenticationStateProvider AuthStateProvider
+@inject IJSRuntime JS
+
+@* Compact button that matches existing UI classes. The modal reuses app modal styles. Labels in English to match app language. *@
+<div style="display: contents;">
+    @if (!show)
+    {
+        <button class="side-action-btn" @onclick="OpenModalAsync" disabled="@isSubmitting">Request update</button>
+
+        @if (!string.IsNullOrEmpty(resultMessage))
+        {
+            <div class="side-admin-message" style="margin-top:8px;">@resultMessage</div>
+            @if (!string.IsNullOrWhiteSpace(resultUrl))
+            {
+                <div style="margin-top:6px;">
+                    <a class="side-action-btn side-action-outline" href="@resultUrl" target="_blank">Open files folder</a>
+                </div>
+            }
+        }
+    }
+    else
+    {
+        <div class="modal-overlay">
+            <div class="modal-box">
+                <h3>Request update</h3>
+
+                @if (!isSubmitting)
+                {
+                    <div class="form-group">
+                        <label>Version</label>
+                        <input @bind="requestedVersion" />
+                        @if (!string.IsNullOrEmpty(validationMessage))
+                        {
+                            <div class="side-admin-message" style="color:#b91c1c; margin-top:6px;">@validationMessage</div>
+                        }
+                    </div>
+
+                    <div class="form-group">
+                        <label>Reason</label>
+                        <textarea @bind="reason"></textarea>
+                    </div>
+
+                    <div class="form-group">
+                        <label>Notes (optional)</label>
+                        <textarea @bind="notes"></textarea>
+                    </div>
+
+                    <div class="modal-actions">
+                        <button class="top-btn" @onclick="SubmitAsyncInternal">Submit</button>
+                        <button class="top-btn" @onclick="Cancel">Cancel</button>
+                    </div>
+                }
+                else
+                {
+                    <div class="loading-container">
+                        <div class="loading-spinner"></div>
+                        <div class="loading-text">@(string.IsNullOrEmpty(resultMessage) ? "Processing request..." : resultMessage)</div>
+                    </div>
+                }
+
+                @if (!string.IsNullOrEmpty(resultMessage) && resultMessage.StartsWith("Error:"))
+                {
+                    <div class="form-group">
+                        <div class="side-admin-message" style="color:#b91c1c;">@resultMessage</div>
+                        <div style="margin-top:12px;">
+                            <button class="top-btn" @onclick="Cancel">Close</button>
+                        </div>
+                    </div>
+                }
+            </div>
+        </div>
+    }
+</div>
+
+@code {
+    [Parameter] public ToolEntry Tool { get; set; } = default!;
+
+    private bool show = false;
+    private bool isSubmitting = false;
+    private string? resultUrl;
+    private string resultMessage = string.Empty;
+    private string validationMessage = string.Empty;
+
+    private string requestedVersion = string.Empty;
+    private string reason = string.Empty;
+    private string notes = string.Empty;
+
+    private async Task OpenModalAsync()
+    {
+        // initialize form when opening
+        requestedVersion = Tool?.Version ?? string.Empty;
+        reason = string.Empty;
+        notes = string.Empty;
+        resultMessage = string.Empty;
+        resultUrl = null;
+        validationMessage = string.Empty;
+
+        // Pre-fetch archive versions to help client-side validation
+        try
+        {
+            var archive = await ToolLocationService.ListArchiveVersionsAsync(Tool.ToolFolderPath, CancellationToken.None);
+            // store locally if needed later (not required now)
+        }
+        catch
+        {
+            // ignore errors - proceed with modal
+        }
+
+        show = true;
+    }
+
+    private void Cancel()
+    {
+        // close and clear state
+        show = false;
+        resultUrl = null;
+        resultMessage = string.Empty;
+        requestedVersion = string.Empty;
+        reason = string.Empty;
+        notes = string.Empty;
+        validationMessage = string.Empty;
+    }
+
+    private static string NormalizeForCompare(string value)
+    {
+        if (string.IsNullOrWhiteSpace(value))
+            return string.Empty;
+
+        var chars = value.Where(char.IsLetterOrDigit).ToArray();
+        return new string(chars).ToLowerInvariant();
+    }
+
+    private async Task SubmitAsyncInternal()
+    {
+        // validation: required and must not equal existing version
+        if (string.IsNullOrWhiteSpace(requestedVersion))
+        {
+            validationMessage = "Version is required and must be different from current version.";
+            return;
+        }
+
+        if (Tool is null)
+        {
+            validationMessage = "Error: no tool selected.";
+            return;
+        }
+
+        if (string.Equals(requestedVersion?.Trim(), Tool.Version?.Trim(), StringComparison.OrdinalIgnoreCase))
+        {
+            validationMessage = "Requested version must be different from current version.";
+            return;
+        }
+
+        // Check archive for existing version folders named like v{version}
+        try
+        {
+            var archiveList = await ToolLocationService.ListArchiveVersionsAsync(Tool.ToolFolderPath, CancellationToken.None);
+            var requestedKey = NormalizeForCompare("v" + requestedVersion);
+
+            if (archiveList.Any(a => NormalizeForCompare(a) == requestedKey))
+            {
+                validationMessage = "Requested version already exists in archive.";
+                return;
+            }
+        }
+        catch
+        {
+            // ignore archive-check errors, allow submit to proceed
+        }
+
+        // Set loading state but keep modal open to show progress
+        isSubmitting = true;
+        validationMessage = string.Empty;
+        resultMessage = "Processing request...";
+        await InvokeAsync(StateHasChanged);
+
+        var auth = await AuthStateProvider.GetAuthenticationStateAsync();
+        var user = auth.User;
+
+        var requestedByOid = user.FindFirst("http://schemas.microsoft.com/identity/claims/objectidentifier")?.Value ?? string.Empty;
+        var requestedByName = user.Identity?.Name ?? string.Empty;
+        var requestedByEmail = user.FindFirst(ClaimTypes.Email)?.Value ?? string.Empty;
+
+        var input = new CreateToolUpdateRequestInput(
+            TargetToolId: Tool.Id,
+            Name: Tool.Name,
+            Category: Tool.Category,
+            Owner: Tool.Owner,
+            Status: Tool.Status,
+            Version: Tool.Version,
+            Description: Tool.Description ?? string.Empty,
+            Tags: string.Join(',', Tool.Tags ?? Array.Empty<string>()),
+            RequestedVersion: requestedVersion,
+            Reason: reason,
+            Notes: notes,
+            RequestedByOid: requestedByOid,
+            RequestedByName: requestedByName,
+            RequestedByEmail: requestedByEmail
+        );
+
+        try
+        {
+            var res = await RequestService.CreateUpdateAsync(input, CancellationToken.None);
+            resultUrl = res.FolderUrl;
+            resultMessage = "Request created successfully. Opening SharePoint...";
+            await InvokeAsync(StateHasChanged);
+
+            // small delay then open SharePoint in new tab
+            await Task.Delay(1800);
+
+            if (!string.IsNullOrWhiteSpace(resultUrl))
+            {
+                try
+                {
+                    await JS.InvokeVoidAsync("open", resultUrl, "_blank");
+                }
+                catch
+                {
+                    // ignore JS errors
+                }
+            }
+
+            // Close modal after successful completion
+            await Task.Delay(500);
+            show = false;
+        }
+        catch (Exception ex)
+        {
+            resultMessage = "Error: " + ex.Message;
+        }
+        finally
+        {
+            isSubmitting = false;
+            await InvokeAsync(StateHasChanged);
+        }
+    }
+}

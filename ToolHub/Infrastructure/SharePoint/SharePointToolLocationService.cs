@@ -35,6 +35,36 @@ public sealed class SharePointToolLocationService
         return item.WebUrl;
     }
 
+    public async Task<IReadOnlyList<string>> ListArchiveVersionsAsync(string toolFolderPath, CancellationToken ct)
+    {
+        if (string.IsNullOrWhiteSpace(toolFolderPath))
+            return Array.Empty<string>();
+
+        var archivePath = NormalizePath($"{toolFolderPath}/archive");
+
+        try
+        {
+            var archive = await _graph
+                .Drives[DriveId]
+                .Root
+                .ItemWithPath(archivePath)
+                .Children
+                .GetAsync(cancellationToken: ct);
+
+            if (archive?.Value == null)
+                return Array.Empty<string>();
+
+            return archive.Value
+                .Where(d => !string.IsNullOrWhiteSpace(d.Name))
+                .Select(d => d.Name!)
+                .ToList();
+        }
+        catch
+        {
+            return Array.Empty<string>();
+        }
+    }
+
     private static string NormalizePath(string path)
     {
         return path

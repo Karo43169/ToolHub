@@ -3,6 +3,72 @@
     color: #111827;
 }
 
+/* Enforce breaking of long tokens everywhere inside request cards and details */
+
+/* Utility class for text wrapping and fallback */
+.text-wrap {
+    white-space: normal !important;
+    word-break: break-word !important;
+    overflow-wrap: anywhere !important;
+    hyphens: auto !important;
+}
+
+.admin-request-card, .admin-request-card * {
+    min-width: 0 !important;
+}
+
+.admin-request-card .request-description,
+.admin-request-card .request-desc-text,
+.admin-request-card .request-extra,
+.admin-request-card .request-extra p,
+.admin-request-card .request-user,
+.admin-request-card .request-meta div {
+    white-space: normal !important;
+    word-break: break-all !important; /* aggressively break long tokens */
+    overflow-wrap: anywhere !important;
+}
+
+/* Right panel details: ensure wrapping and prevent overflow */
+.right-panel .side-admin-summary p,
+.right-panel .side-admin-summary .request-desc-text,
+.right-panel .side-admin-summary .request-extra,
+.right-panel .side-admin-summary .request-extra p {
+    white-space: normal !important;
+    word-break: break-word !important;
+    overflow-wrap: anywhere !important;
+}
+
+/* Extra safety: clamp not applied in details panel */
+.right-panel .request-desc-text,
+.right-panel .request-extra p {
+    display: block !important;
+    overflow: visible !important;
+}
+
+/* Make details headers and values visually distinct */
+.right-panel .side-admin-summary {
+    background: transparent;
+    padding: 12px 10px;
+    border-radius: 8px;
+}
+
+.right-panel .side-admin-summary h4 {
+    margin: 0;
+    color: #0f172a;
+    font-weight: 800;
+    font-size: 1rem;
+}
+
+.right-panel .side-admin-summary p {
+    margin: 6px 0 0 0;
+    color: #374151;
+}
+
+.right-panel .request-status {
+    display: inline-block;
+    margin-top: 6px;
+}
+
 .admin-header {
     display: flex;
     justify-content: space-between;
@@ -133,6 +199,9 @@
     border-radius: 1.25rem;
     background: #ffffff;
     box-shadow: 0 14px 36px rgba(15, 23, 42, 0.12);
+    box-sizing: border-box; /* ensure padding included in width */
+    overflow: hidden; /* prevent children from overflowing the card */
+    max-width: 100%;
 }
 
 .request-card-top {
@@ -154,6 +223,20 @@
     margin: 0;
     color: #111827;
     font-size: 1.15rem;
+}
+
+/* style for update badge to allow wrapping and reasonable size */
+.update-badge {
+    background: #f0ad4e;
+    color: #333;
+    padding: 4px 8px;
+    border-radius: 8px;
+    font-size: 12px;
+    display: inline-block;
+    max-width: 96px; /* prevent long label pushing layout */
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
 }
 
 .request-status {
@@ -178,6 +261,7 @@
         border: 1px solid #e5e7eb;
         border-radius: 0.85rem;
         background: #f9fafb;
+        word-break: break-word; /* allow meta fields to wrap */
     }
 
     .request-meta span,
@@ -186,7 +270,14 @@
         margin-bottom: 0.25rem;
         color: #64748b;
         font-size: 0.75rem;
-        font-weight: 700;
+        font-weight: 700; /* keep labels bold */
+    }
+
+    .request-meta strong,
+    .request-user strong,
+    .request-description strong,
+    .side-admin-summary p strong {
+        font-weight: 700; /* ensure headings in description/details are bold */
     }
 
     .request-meta strong,
@@ -201,12 +292,14 @@
     border: 1px solid #e5e7eb;
     border-radius: 0.9rem;
     background: #f8fafc;
+    word-break: break-word;
 }
 
     .request-user small {
         display: block;
         margin-top: 0.2rem;
         color: #475569;
+        word-break: break-word;
     }
 
 .request-description {
@@ -214,6 +307,94 @@
     margin: 0 0 1rem 0;
     color: #374151;
     line-height: 1.45;
+    white-space: normal; /* allow wrapping */
+    word-break: break-word; /* reasonable wrapping */
+    overflow-wrap: anywhere;
+    max-width: 100%;
+    min-width: 0; /* allow shrinking inside grid */
+}
+
+/* Stronger, high-specificity rules to force wrapping and prevent horizontal overflow */
+.admin-request-card .request-description,
+.admin-request-card .request-desc-text,
+.admin-request-card .request-extra,
+.admin-request-card .request-extra p,
+.right-panel .request-description,
+.right-panel .request-desc-text,
+.right-panel .request-extra,
+.right-panel .request-extra p {
+    white-space: normal !important;
+    word-break: break-word !important;
+    overflow-wrap: anywhere !important;
+    max-width: 100% !important;
+    box-sizing: border-box !important;
+    hyphens: auto !important;
+}
+
+/* ensure container elements occupy full available width and don't push layout */
+.admin-request-card .request-extra,
+.admin-request-card .request-desc-text {
+    display: block !important;
+    width: 100% !important;
+}
+
+/* Limit text displayed on cards: clamp to N lines to prevent overflow */
+.admin-request-card .request-desc-text,
+.admin-request-card .request-description {
+    display: -webkit-box;
+    -webkit-line-clamp: 4; /* show up to 4 lines */
+    -webkit-box-orient: vertical;
+    overflow: hidden;
+}
+
+.admin-request-card .request-extra p {
+    display: -webkit-box;
+    -webkit-line-clamp: 3; /* limit reason/notes inside card */
+    -webkit-box-orient: vertical;
+    overflow: hidden;
+    margin: 6px 0;
+}
+
+/* In the right details panel allow full wrapping and scrolling */
+.right-panel .request-description,
+.right-panel .request-desc-text,
+.right-panel .request-extra p {
+    display: block !important;
+    -webkit-line-clamp: none !important;
+    -webkit-box-orient: unset !important;
+    overflow: visible !important;
+    white-space: normal !important;
+    word-break: break-word !important;
+    max-height: none !important;
+}
+
+/* provide subtle spacing for request-extra paragraphs */
+.request-extra p {
+    margin: 6px 0;
+}
+
+/* Make the update badge wrap instead of being cut */
+.request-card-top .badge,
+.admin-request-card .badge {
+    max-width: none;
+    display: inline-block;
+    white-space: normal; /* allow wrapping */
+    padding: 4px 6px !important; /* respect inline style but slightly smaller */
+    font-size: 12px !important;
+}
+
+/* Separator between side summary blocks to improve readability */
+.side-admin-summary + .side-admin-summary {
+    border-top: 1px solid #eef2f6;
+    padding-top: 10px;
+    margin-top: 10px;
+}
+
+/* Make side-admin labels bold */
+.side-admin-label {
+    font-weight: 700;
+    margin-bottom: 0.25rem;
+    color: #374151;
 }
 
 .request-actions {

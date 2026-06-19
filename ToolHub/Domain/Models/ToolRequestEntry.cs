@@ -12,6 +12,12 @@ public sealed record ToolRequestEntry(
     string ApplicationReqFolderUrl,
     ToolRequestMetadata Tool,
 
+    // Optional fields for update requests
+    string? TargetToolId = null,
+    string? Reason = null,
+    string? RequestedVersion = null,
+    string? Notes = null,
+
     DateTimeOffset? ApprovedAtUtc = null,
     string? ApprovedByOid = null,
     string? ApprovedByName = null,

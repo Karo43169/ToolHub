@@ -95,6 +95,10 @@ else
                             <div>
                                 <div class="request-id">@req.RequestId</div>
                                 <h3>@req.Tool.Name</h3>
+                                @if (string.Equals(req.Type, "UpdateTool", StringComparison.OrdinalIgnoreCase))
+                                {
+                                    <div style="margin-top:6px;"><span class="badge" style="background:#f0ad4e;color:#333;padding:4px 6px;border-radius:8px;font-size:12px;display:inline-block;white-space:normal;word-break:break-word;overflow-wrap:anywhere;max-width:120px;">Update request</span></div>
+                                }
                             </div>
                             <span class="request-status">@req.Status</span>
                         </div>
@@ -107,6 +111,7 @@ else
                             <div>
                                 <span>Version</span>
                                 <strong>@req.Tool.Version</strong>
+                                <strong>@(string.Equals(req.Type, "UpdateTool", StringComparison.OrdinalIgnoreCase) ? (req.RequestedVersion ?? req.Tool.Version) : req.Tool.Version)</strong>
                             </div>
                             <div>
                                 <span>Requested at</span>
@@ -116,21 +121,32 @@ else
 
                         <div class="request-user">
                             <span>Requested by</span>
-                            <strong>@req.RequestedByName</strong>
-                            <small>@req.RequestedByEmail</small>
+                            <strong>@FormatRequesterDisplay(req.RequestedByName, req.RequestedByEmail)</strong>
+                            <small class="text-wrap">@GetRequesterEmailDisplay(req.RequestedByName, req.RequestedByEmail)</small>
                         </div>
 
-                        <p class="request-description">
-                            @req.Tool.Description
-                        </p>
+                        <div class="request-description">
+                            <div class="request-desc-text text-wrap">@BreakLongTokens(req.Tool.Description)</div>
+                            @if (string.Equals(req.Type, "UpdateTool", StringComparison.OrdinalIgnoreCase))
+                            {
+                                <div class="request-extra" style="margin-top:8px;">
+                                    <p class="text-wrap"> <strong>Requested version:</strong> @req.RequestedVersion</p>
+                                    <p class="text-wrap"> <strong>Reason:</strong> @BreakLongTokens(req.Reason)</p>
+                                    @if (!string.IsNullOrWhiteSpace(req.Notes))
+                                    {
+                                        <p class="text-wrap"><strong>Notes:</strong> @BreakLongTokens(req.Notes)</p>
+                                    }
+                                </div>
+                            }
+                        </div>
 
                         <div class="request-actions">
                             @if (!string.IsNullOrWhiteSpace(req.ApplicationReqFolderUrl))
                             {
                                 <a class="admin-btn admin-btn-primary"
-                                       href="@req.ApplicationReqFolderUrl"
-                                       target="_blank"
-                                       @onclick:stopPropagation="true">
+                                   href="@req.ApplicationReqFolderUrl"
+                                   target="_blank"
+                                   @onclick:stopPropagation="true">
                                     Open files folder
                                 </a>
                             }
@@ -162,6 +178,7 @@ else
                             <div>
                                 <span>Version</span>
                                 <strong>@req.Tool.Version</strong>
+                                <strong>@(string.Equals(req.Type, "UpdateTool", StringComparison.OrdinalIgnoreCase) ? (req.RequestedVersion ?? req.Tool.Version) : req.Tool.Version)</strong>
                             </div>
                             <div>
                                 <span>Processed at</span>
@@ -171,8 +188,8 @@ else
 
                         <div class="request-user">
                             <span>Requested by</span>
-                            <strong>@req.RequestedByName</strong>
-                            <small>@req.RequestedByEmail</small>
+                            <strong>@FormatRequesterDisplay(req.RequestedByName, req.RequestedByEmail)</strong>
+                            <small class="text-wrap">@GetRequesterEmailDisplay(req.RequestedByName, req.RequestedByEmail)</small>
                         </div>
 
                         <div class="request-user">
@@ -183,6 +200,20 @@ else
                         <p class="request-description">
                             @req.Tool.Description
                         </p>
+                        <div class="request-description">
+                            <div class="request-desc-text text-wrap">@BreakLongTokens(req.Tool.Description)</div>
+                            @if (string.Equals(req.Type, "UpdateTool", StringComparison.OrdinalIgnoreCase))
+                            {
+                                <div class="request-extra" style="margin-top:8px;">
+                                    <p class="text-wrap"><strong>Requested version:</strong> @req.RequestedVersion</p>
+                                    <p class="text-wrap"><strong>Reason:</strong> @BreakLongTokens(req.Reason)</p>
+                                    @if (!string.IsNullOrWhiteSpace(req.Notes))
+                                    {
+                                        <p class="text-wrap"><strong>Notes:</strong> @BreakLongTokens(req.Notes)</p>
+                                    }
+                                </div>
+                            }
+                        </div>
 
                         <div class="request-actions">
                             @if (IsApproved(req) && !string.IsNullOrWhiteSpace(req.ApprovedToolId))
@@ -195,9 +226,9 @@ else
                             @if (IsRejected(req) && !string.IsNullOrWhiteSpace(req.RejectedFolderUrl))
                             {
                                 <a class="admin-btn admin-btn-primary"
-                                       href="@req.RejectedFolderUrl"
-                                       target="_blank"
-                                       @onclick:stopPropagation="true">
+                                   href="@req.RejectedFolderUrl"
+                                   target="_blank"
+                                   @onclick:stopPropagation="true">
                                     Open rejected folder
                                 </a>
                             }
@@ -211,6 +242,77 @@ else
 
 @code {
     private static readonly TimeSpan HeartbeatInterval = TimeSpan.FromMinutes(5);
+
+    private static string BreakLongTokens(string? text, int chunk = 40)
+    {
+        if (string.IsNullOrEmpty(text))
+            return string.Empty;
+
+        return System.Text.RegularExpressions.Regex.Replace(text, "(\\S{" + chunk + "})", "$1\u200B");
+    }
+
+    private static string FormatRequesterDisplay(string? name, string? email)
+    {
+        // Prefer an explicit readable name when available
+        if (!string.IsNullOrWhiteSpace(name) && !name.Contains("@"))
+            return name!;
+
+        // If name looks like an email but email field is empty, derive display from name
+        if (!string.IsNullOrWhiteSpace(name) && name.Contains("@") && string.IsNullOrWhiteSpace(email))
+        {
+            var local = name.Split('@')[0];
+            local = local.Replace('.', ' ').Replace('_', ' ').Trim();
+            if (string.IsNullOrEmpty(local))
+                return name!;
+
+            return System.Globalization.CultureInfo.CurrentCulture.TextInfo.ToTitleCase(local);
+        }
+
+        // If name is missing but email is present, derive from email local-part
+        if (string.IsNullOrWhiteSpace(name) && !string.IsNullOrWhiteSpace(email))
+        {
+            var local = email.Split('@')[0];
+            local = local.Replace('.', ' ').Replace('_', ' ').Trim();
+            if (string.IsNullOrEmpty(local))
+                return email!;
+
+            return System.Globalization.CultureInfo.CurrentCulture.TextInfo.ToTitleCase(local);
+        }
+
+        // Fallback: show email if available, otherwise Unknown
+        if (!string.IsNullOrWhiteSpace(email))
+            return email!;
+
+        return "Unknown";
+    }
+
+    private static string GetRequesterEmailDisplay(string? name, string? email)
+    {
+        // Prefer explicit email when available
+        if (!string.IsNullOrWhiteSpace(email))
+            return email!;
+
+        // If email missing but name looks like an email, return that
+        if (!string.IsNullOrWhiteSpace(name) && name.Contains("@"))
+            return name!;
+
+        return string.Empty;
+    }
+
+    private static bool ShouldShowEmailBelow(string? name, string? email)
+    {
+        if (string.IsNullOrWhiteSpace(email))
+            return false;
+
+        // show email under the name only when an explicit non-email name was provided
+        if (string.IsNullOrWhiteSpace(name))
+            return false;
+
+        if (name.Contains("@"))
+            return false;
+
+        return !string.Equals(name.Trim(), email.Trim(), StringComparison.OrdinalIgnoreCase);
+    }
 
     private IReadOnlyList<ToolRequestEntry> requests = [];
 

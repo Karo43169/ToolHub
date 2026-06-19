@@ -115,6 +115,77 @@ public sealed class SharePointToolRequestService
             RequestId: requestId,
             FolderUrl: folder?.WebUrl ?? "");
     }
+
+    public async Task<ToolRequestResult> CreateUpdateAsync(
+        CreateToolUpdateRequestInput input,
+        CancellationToken ct)
+    {
+        var requestId = $"REQ-{DateTime.UtcNow:yyyy-MM-dd-HHmmss}";
+
+        var sanitizedFolderName = SanitizeSharePointName(requestId);
+
+        var folder = await _graph
+            .Drives[DriveId]
+            .Root
+            .ItemWithPath(ApplicationReqRoot)
+            .Children
+            .PostAsync(new DriveItem
+            {
+                Name = sanitizedFolderName,
+                Folder = new Folder()
+            }, cancellationToken: ct);
+
+        var requestJson = new
+        {
+            requestId,
+            type = "UpdateTool",
+            status = "Pending",
+            requestedAtUtc = DateTime.UtcNow,
+
+            requestedByOid = input.RequestedByOid,
+            requestedByName = input.RequestedByName,
+            requestedByEmail = input.RequestedByEmail,
+
+            applicationReqFolder = $"{ApplicationReqRoot}/{sanitizedFolderName}",
+            applicationReqFolderUrl = folder?.WebUrl,
+
+            targetToolId = input.TargetToolId,
+            reason = input.Reason,
+            requestedVersion = input.RequestedVersion,
+            notes = input.Notes,
+
+            tool = new
+            {
+                name = input.Name,
+                category = input.Category,
+                owner = input.Owner,
+                status = input.Status,
+                version = input.Version,
+                description = input.Description,
+                tags = input.Tags
+            }
+        };
+
+        var json = JsonSerializer.Serialize(
+            requestJson,
+            new JsonSerializerOptions
+            {
+                WriteIndented = true
+            });
+
+        using var stream = new MemoryStream(Encoding.UTF8.GetBytes(json));
+
+        await _graph
+            .Drives[DriveId]
+            .Root
+            .ItemWithPath($"{RequestJsonRoot}/{requestId}.json")
+            .Content
+            .PutAsync(stream, cancellationToken: ct);
+
+        return new ToolRequestResult(
+            RequestId: requestId,
+            FolderUrl: folder?.WebUrl ?? "");
+    }
 }
 
 public sealed record CreateToolRequestInput(
@@ -125,6 +196,23 @@ public sealed record CreateToolRequestInput(
     string Version,
     string Description,
     string Tags,
+    string RequestedByOid,
+    string RequestedByName,
+    string RequestedByEmail
+);
+
+public sealed record CreateToolUpdateRequestInput(
+    string TargetToolId,
+    string Name,
+    string Category,
+    string Owner,
+    string Status,
+    string Version,
+    string Description,
+    string Tags,
+    string RequestedVersion,
+    string Reason,
+    string Notes,
     string RequestedByOid,
     string RequestedByName,
     string RequestedByEmail

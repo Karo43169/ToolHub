@@ -166,7 +166,7 @@
         </div>
 
         <div class="right-panel">
-            <div class="details-content">
+            <div class="details-content" style="padding-right:12px;">
                 @if (IsAdminPage)
                 {
                     @if (AdminRequestViewState.IsHistory)
@@ -198,15 +198,15 @@
                                 <h4>@req.Tool.Name</h4>
                                 <p>
                                     <strong>Category:</strong> @req.Tool.Category<br />
-                                    <strong>Version:</strong> @req.Tool.Version<br />
+                                    <strong>Version:</strong> @(string.Equals(req.Type, "UpdateTool", StringComparison.OrdinalIgnoreCase) ? (req.RequestedVersion ?? req.Tool.Version) : req.Tool.Version)<br />
                                     <strong>Owner:</strong> @req.Tool.Owner
                                 </p>
                             </div>
 
                             <div class="side-admin-summary">
                                 <p class="side-admin-label">Requested by</p>
-                                <h4>@req.RequestedByName</h4>
-                                <p>@req.RequestedByEmail</p>
+                                <h4>@FormatRequesterDisplay(req.RequestedByName, req.RequestedByEmail)</h4>
+                                <p class="text-wrap">@GetRequesterEmailDisplay(req.RequestedByName, req.RequestedByEmail)</p>
                             </div>
 
                             <div class="side-admin-summary">
@@ -233,8 +233,8 @@
                                 <div class="side-admin-summary">
                                     <p class="side-admin-label">Rejected files</p>
                                     <a class="side-action-btn side-action-outline"
-                                           href="@req.RejectedFolderUrl"
-                                           target="_blank">
+                                       href="@req.RejectedFolderUrl"
+                                       target="_blank">
                                         Open rejected folder
                                     </a>
                                 </div>
@@ -242,8 +242,28 @@
 
                             <div class="side-admin-summary">
                                 <p class="side-admin-label">Description</p>
-                                <p>@req.Tool.Description</p>
+                                <p class="text-wrap">@BreakLongTokensMain(req.Tool.Description)</p>
                             </div>
+
+                            <hr style="border-top:1px solid #eee; margin:10px 0;" />
+
+                            @if (string.Equals(req.Type, "UpdateTool", StringComparison.OrdinalIgnoreCase))
+                            {
+                                <div class="side-admin-summary">
+                                    <p><strong>Requested version:</strong> @req.RequestedVersion</p>
+                                </div>
+
+                                <div class="side-admin-summary">
+                                    <p class="text-wrap"><strong>Reason:</strong> @BreakLongTokensMain(req.Reason)</p>
+                                </div>
+
+                                @if (!string.IsNullOrWhiteSpace(req.Notes))
+                                {
+                                    <div class="side-admin-summary">
+                                        <p class="text-wrap"><strong>Notes:</strong> @BreakLongTokensMain(req.Notes)</p>
+                                    </div>
+                                }
+                            }
                         }
                     }
                     else
@@ -286,16 +306,15 @@
 
                                 <p>
                                     <strong>Category:</strong> @req.Tool.Category<br />
-                                    <strong>Version:</strong> @req.Tool.Version<br />
+                                    <strong>Version:</strong> @(string.Equals(req.Type, "UpdateTool", StringComparison.OrdinalIgnoreCase) ? (req.RequestedVersion ?? req.Tool.Version) : req.Tool.Version)<br />
                                     <strong>Owner:</strong> @req.Tool.Owner
                                 </p>
                             </div>
 
                             <div class="side-admin-summary">
                                 <p class="side-admin-label">Requested by</p>
-                                <h4>@req.RequestedByName</h4>
-
-                                <p>@req.RequestedByEmail</p>
+                                <h4>@FormatRequesterDisplay(req.RequestedByName, req.RequestedByEmail)</h4>
+                                <p class="text-wrap">@GetRequesterEmailDisplay(req.RequestedByName, req.RequestedByEmail)</p>
                             </div>
 
                             <div class="side-admin-summary">
@@ -305,8 +324,28 @@
 
                             <div class="side-admin-summary">
                                 <p class="side-admin-label">Description</p>
-                                <p>@req.Tool.Description</p>
+                                <p class="text-wrap">@BreakLongTokensMain(req.Tool.Description)</p>
                             </div>
+
+                            <hr style="border-top:1px solid #eee; margin:10px 0;" />
+
+                            @if (string.Equals(req.Type, "UpdateTool", StringComparison.OrdinalIgnoreCase))
+                            {
+                                <div class="side-admin-summary">
+                                    <p><strong>Requested version:</strong> @req.RequestedVersion</p>
+                                </div>
+
+                                <div class="side-admin-summary">
+                                    <p class="text-wrap"><strong>Reason:</strong> @BreakLongTokensMain(req.Reason)</p>
+                                </div>
+
+                                @if (!string.IsNullOrWhiteSpace(req.Notes))
+                                {
+                                    <div class="side-admin-summary">
+                                        <p class="text-wrap"><strong>Notes:</strong> @BreakLongTokensMain(req.Notes)</p>
+                                    </div>
+                                }
+                            }
 
                             @if (!string.IsNullOrWhiteSpace(req.ApplicationReqFolderUrl))
                             {
@@ -314,8 +353,8 @@
                                     <p class="side-admin-label">Uploaded files</p>
 
                                     <a class="side-action-btn side-action-outline"
-                                           href="@req.ApplicationReqFolderUrl"
-                                           target="_blank">
+                                       href="@req.ApplicationReqFolderUrl"
+                                       target="_blank">
                                         Open files folder
                                     </a>
                                 </div>
@@ -382,6 +421,11 @@
                                     @onclick="OpenSelectedToolLocation">
                                 @(isOpeningToolLocation ? "Opening..." : "Open location")
                             </button>
+
+                            @if (HubState.Selected is not null)
+                            {
+                                <ToolUpdateRequest Tool="HubState.Selected" />
+                            }
 
                             @if (isAdmin)
                             {
@@ -828,7 +872,7 @@
                     GetDisplayName(user),
                     CancellationToken.None);
 
-                
+
                 HubState.Update(updated);
                 ToolCatalogCache.RefreshInBackground();
 
@@ -850,30 +894,47 @@
             return;
         }
 
-        var authStateAdd = await AuthStateProvider.GetAuthenticationStateAsync();
-        var addUser = authStateAdd.User;
-
-        var result = await ToolRequestService.CreateAsync(
-            new ToolHub.Infrastructure.SharePoint.CreateToolRequestInput(
-                Name: editName,
-                Category: editCategory,
-                Owner: editOwner,
-                Status: editStatus,
-                Version: editVersion,
-                Description: editDescription,
-                Tags: editTags,
-                RequestedByOid: GetOid(addUser),
-                RequestedByName: GetDisplayName(addUser),
-                RequestedByEmail: GetEmail(addUser)
-            ),
-            CancellationToken.None);
-
+        // Close modal immediately for better UX - show loading message instead
         showModal = false;
-
+        isSavingToolMetadata = true;
+        toolEditMessage = "Creating request...";
         await InvokeAsync(StateHasChanged);
-        await Task.Yield();
 
-        await JS.InvokeVoidAsync("open", result.FolderUrl, "_blank");
+        try
+        {
+            var authStateAdd = await AuthStateProvider.GetAuthenticationStateAsync();
+            var addUser = authStateAdd.User;
+
+            var result = await ToolRequestService.CreateAsync(
+                new ToolHub.Infrastructure.SharePoint.CreateToolRequestInput(
+                    Name: editName,
+                    Category: editCategory,
+                    Owner: editOwner,
+                    Status: editStatus,
+                    Version: editVersion,
+                    Description: editDescription,
+                    Tags: editTags,
+                    RequestedByOid: GetOid(addUser),
+                    RequestedByName: GetDisplayName(addUser),
+                    RequestedByEmail: GetEmail(addUser)
+                ),
+                CancellationToken.None);
+
+            toolEditMessage = "Request created successfully. Opening SharePoint...";
+            await InvokeAsync(StateHasChanged);
+            await Task.Yield();
+
+            await JS.InvokeVoidAsync("open", result.FolderUrl, "_blank");
+        }
+        catch (Exception ex)
+        {
+            toolEditMessage = $"Error creating request: {ex.Message}";
+        }
+        finally
+        {
+            isSavingToolMetadata = false;
+            await InvokeAsync(StateHasChanged);
+        }
     }
 
     private async Task ApproveSelectedRequest()
@@ -910,10 +971,17 @@
                 approvedByName,
                 CancellationToken.None);
 
-            
-            HubState.Add(approvedTool);
-            ToolCatalogCache.RefreshInBackground();
+            // If this was an update request, update existing tool in state; otherwise add new
+            if (string.Equals(selectedRequest.Type, "UpdateTool", StringComparison.OrdinalIgnoreCase))
+            {
+                HubState.Update(approvedTool);
+            }
+            else
+            {
+                HubState.Add(approvedTool);
+            }
 
+            ToolCatalogCache.RefreshInBackground();
 
             AdminRequestState.Clear();
             AdminRequestState.RequestRefresh();
@@ -1099,6 +1167,76 @@
         return user?.FindFirst("name")?.Value
                ?? user?.Identity?.Name
                ?? "User";
+    }
+
+    private static string BreakLongTokensMain(string? text, int chunk = 40)
+    {
+        if (string.IsNullOrEmpty(text))
+            return string.Empty;
+
+        return System.Text.RegularExpressions.Regex.Replace(text, "(\\S{" + chunk + "})", "$1\u200B");
+    }
+
+    private static string FormatRequesterDisplay(string? name, string? email)
+    {
+        // Prefer an explicit readable name when available
+        if (!string.IsNullOrWhiteSpace(name) && !name.Contains("@"))
+            return name!;
+
+        // If name looks like an email but email field is empty, derive display from name
+        if (!string.IsNullOrWhiteSpace(name) && name.Contains("@") && string.IsNullOrWhiteSpace(email))
+        {
+            var local = name.Split('@')[0];
+            local = local.Replace('.', ' ').Replace('_', ' ').Trim();
+            if (string.IsNullOrEmpty(local))
+                return name!;
+
+            return System.Globalization.CultureInfo.CurrentCulture.TextInfo.ToTitleCase(local);
+        }
+
+        // If name is missing but email is present, derive from email local-part
+        if (string.IsNullOrWhiteSpace(name) && !string.IsNullOrWhiteSpace(email))
+        {
+            var local = email.Split('@')[0];
+            local = local.Replace('.', ' ').Replace('_', ' ').Trim();
+            if (string.IsNullOrEmpty(local))
+                return email!;
+
+            return System.Globalization.CultureInfo.CurrentCulture.TextInfo.ToTitleCase(local);
+        }
+
+        // Fallback: show email if available, otherwise Unknown
+        if (!string.IsNullOrWhiteSpace(email))
+            return email!;
+
+        return "Unknown";
+    }
+
+    private static bool ShouldShowEmailBelow(string? name, string? email)
+    {
+        if (string.IsNullOrWhiteSpace(email))
+            return false;
+
+        if (string.IsNullOrWhiteSpace(name))
+            return false;
+
+        if (name.Contains("@"))
+            return false;
+
+        return !string.Equals(name.Trim(), email.Trim(), StringComparison.OrdinalIgnoreCase);
+    }
+
+    private static string GetRequesterEmailDisplay(string? name, string? email)
+    {
+        // Prefer explicit email when available
+        if (!string.IsNullOrWhiteSpace(email))
+            return email!;
+
+        // If email missing but name looks like an email, return that
+        if (!string.IsNullOrWhiteSpace(name) && name.Contains("@"))
+            return name!;
+
+        return string.Empty;
     }
 
     private static string GetEmail(ClaimsPrincipal user)
