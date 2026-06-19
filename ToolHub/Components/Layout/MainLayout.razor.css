@@ -199,13 +199,6 @@ font: inherit;
         right: 0.75rem;
         top: 0.5rem;
     }
-.side-admin-message {
-    margin-top: 0.75rem !important;
-    color: #2563eb !important;
-    font-weight: 700;
-    font-size: 0.85rem;
-}
-
 .right-panel .details-content {
     padding: 12px 16px; /* inner padding */
     max-height: calc(100vh - 160px);
@@ -217,24 +210,6 @@ font: inherit;
     margin: 0 0 8px 0;
 }
 
-/* Side admin summary styling for clearer sections */
-.right-panel .side-admin-summary {
-    padding: 10px 8px;
-    border-radius: 8px;
-    margin-bottom: 10px;
-}
-
-.right-panel .side-admin-summary p {
-    margin: 6px 0;
-    color: #111827;
-}
-
-.right-panel .side-admin-summary .side-admin-label {
-    font-weight: 800;
-    color: #374151;
-    margin-bottom: 6px;
-}
-
 /* Utility class for forcing wrap and safe fallback */
 .text-wrap {
     white-space: normal !important;
@@ -244,20 +219,13 @@ font: inherit;
 }
 
 /* Visual separator between groups (subtle) */
-.right-panel .side-admin-summary + .side-admin-summary {
+.side-admin-summary + .side-admin-summary {
     border-top: 1px solid #eef2f6;
     padding-top: 12px;
 }
 
-/* Ensure values (h4 or p strong) stand out */
-.right-panel .side-admin-summary h4,
-.right-panel .side-admin-summary p strong {
-    color: #0f172a;
-    font-weight: 700;
-}
-
 /* Make uploaded files and actions area more spaced */
-.right-panel .side-admin-summary .request-actions,
-.right-panel .side-admin-summary .side-action-btn {
+.side-admin-summary .request-actions,
+.side-admin-summary .side-action-btn {
     margin-top: 12px;
 }

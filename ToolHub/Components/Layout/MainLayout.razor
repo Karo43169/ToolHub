@@ -513,6 +513,15 @@
     </div>
 </div>
 
+@if (showAddToolLoadingOverlay)
+{
+    <div class="modal-overlay">
+        <div class="modal-box" style="min-width: 300px; text-align: center;">
+            <div class="loading-text">@addToolLoadingMessage</div>
+        </div>
+    </div>
+}
+
 @if (showModal)
 {
     <div class="modal-overlay">
@@ -619,6 +628,9 @@
     private bool isAdminEditLockHeld = false;
     private string currentAdminOid = "";
     private string currentAdminName = "";
+
+    private bool showAddToolLoadingOverlay = false;
+    private string addToolLoadingMessage = "";
 
     private bool _photoLoaded = false;
     private string? _photoDataUrl;
@@ -896,6 +908,8 @@
 
         // Close modal immediately for better UX - show loading message instead
         showModal = false;
+        showAddToolLoadingOverlay = true;
+        addToolLoadingMessage = "Creating request...";
         isSavingToolMetadata = true;
         toolEditMessage = "Creating request...";
         await InvokeAsync(StateHasChanged);
@@ -920,6 +934,7 @@
                 ),
                 CancellationToken.None);
 
+            addToolLoadingMessage = "Request created successfully. Opening SharePoint...";
             toolEditMessage = "Request created successfully. Opening SharePoint...";
             await InvokeAsync(StateHasChanged);
             await Task.Yield();
@@ -928,11 +943,17 @@
         }
         catch (Exception ex)
         {
+            addToolLoadingMessage = $"Error: {ex.Message}";
             toolEditMessage = $"Error creating request: {ex.Message}";
         }
         finally
         {
             isSavingToolMetadata = false;
+            await InvokeAsync(StateHasChanged);
+
+            // Hide overlay after delay
+            await Task.Delay(2000);
+            showAddToolLoadingOverlay = false;
             await InvokeAsync(StateHasChanged);
         }
     }
