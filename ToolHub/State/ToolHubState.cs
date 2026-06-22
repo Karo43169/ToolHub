@@ -184,7 +184,10 @@ public sealed class ToolHubState
             {
                 q = q.Where(t =>
                     t.Name.Contains(SearchTerm, StringComparison.OrdinalIgnoreCase) ||
-                    t.Description.Contains(SearchTerm, StringComparison.OrdinalIgnoreCase));
+                    t.Description.Contains(SearchTerm, StringComparison.OrdinalIgnoreCase) ||
+                    t.Tags.Any(tag => tag.Contains(SearchTerm, StringComparison.OrdinalIgnoreCase)) ||
+                    t.Owner.Contains(SearchTerm, StringComparison.OrdinalIgnoreCase) ||
+                    t.Category.Contains(SearchTerm, StringComparison.OrdinalIgnoreCase));
             }
 
             q = CurrentSort switch

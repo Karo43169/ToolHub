@@ -455,7 +455,7 @@ body {
 
 .tool-row {
     display: flex;
-    justify-content: space-between;
+    justify-content: flex-start;
     align-items: center;
     background: #1f2937;
     border: 1px solid #374151;
@@ -466,6 +466,7 @@ body {
 
 .tool-row-name {
     font-weight: 600;
+    margin-right: auto;
 }
 
 .tool-row-meta {
