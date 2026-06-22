@@ -110,8 +110,12 @@ else
                             </div>
                             <div>
                                 <span>Version</span>
-                                <strong>@req.Tool.Version</strong>
-                                <strong>@(string.Equals(req.Type, "UpdateTool", StringComparison.OrdinalIgnoreCase) ? (req.RequestedVersion ?? req.Tool.Version) : req.Tool.Version)</strong>
+                                <strong>
+                                    @(string.Equals(req.Type, "UpdateTool", StringComparison.OrdinalIgnoreCase)
+                                        ? (req.RequestedVersion ?? req.Tool.Version)
+                                        : req.Tool.Version)
+                                </strong>
+
                             </div>
                             <div>
                                 <span>Requested at</span>
@@ -177,8 +181,12 @@ else
                             </div>
                             <div>
                                 <span>Version</span>
-                                <strong>@req.Tool.Version</strong>
-                                <strong>@(string.Equals(req.Type, "UpdateTool", StringComparison.OrdinalIgnoreCase) ? (req.RequestedVersion ?? req.Tool.Version) : req.Tool.Version)</strong>
+                                <strong>
+                                    @(string.Equals(req.Type, "UpdateTool", StringComparison.OrdinalIgnoreCase)
+                                        ? (req.RequestedVersion ?? req.Tool.Version)
+                                        : req.Tool.Version)
+                                </strong>
+
                             </div>
                             <div>
                                 <span>Processed at</span>
