@@ -189,13 +189,13 @@
 
                             <div class="side-admin-summary">
                                 <p class="side-admin-label">Request ID</p>
-                                <h4>@req.RequestId</h4>
-                                <span class="@GetAdminStatusClass(req.Status)">@req.Status</span>
+                                <p><strong>@req.RequestId</strong></p>
+                                <span class="@GetAdminStatusClass(req.Status)" style="display: inline-block; margin-bottom: 15px;">@req.Status</span>
                             </div>
 
                             <div class="side-admin-summary">
                                 <p class="side-admin-label">Tool</p>
-                                <h4>@req.Tool.Name</h4>
+                                <p><strong>@req.Tool.Name</strong></p>
                                 <p>
                                     <strong>Category:</strong> @req.Tool.Category<br />
                                     <strong>Version:</strong> @(string.Equals(req.Type, "UpdateTool", StringComparison.OrdinalIgnoreCase) ? (req.RequestedVersion ?? req.Tool.Version) : req.Tool.Version)<br />
@@ -205,18 +205,13 @@
 
                             <div class="side-admin-summary">
                                 <p class="side-admin-label">Requested by</p>
-                                <h4>@FormatRequesterDisplay(req.RequestedByName, req.RequestedByEmail)</h4>
+                                <p><strong>@FormatRequesterDisplay(req.RequestedByName, req.RequestedByEmail)</strong></p>
                                 <p class="text-wrap">@GetRequesterEmailDisplay(req.RequestedByName, req.RequestedByEmail)</p>
                             </div>
 
                             <div class="side-admin-summary">
-                                <p class="side-admin-label">Requested at</p>
-                                <p>@req.RequestedAtUtc.LocalDateTime</p>
-                            </div>
-
-                            <div class="side-admin-summary">
                                 <p class="side-admin-label">Processed by</p>
-                                <h4>@GetProcessedByName(req)</h4>
+                                <p><strong>@GetProcessedByName(req)</strong></p>
                                 <p>@GetProcessedAt(req)</p>
                             </div>
 
@@ -224,7 +219,7 @@
                             {
                                 <div class="side-admin-summary">
                                     <p class="side-admin-label">Approved tool</p>
-                                    <h4>@req.ApprovedToolId</h4>
+                                    <p><strong>@req.ApprovedToolId</strong></p>
                                 </div>
                             }
 
@@ -295,14 +290,14 @@
 
                             <div class="side-admin-summary">
                                 <p class="side-admin-label">Request ID</p>
-                                <h4>@req.RequestId</h4>
+                                <p><strong>@req.RequestId</strong></p>
 
-                                <span class="request-status">@req.Status</span>
+                                <span class="request-status" style="display: inline-block; margin-bottom: 15px;">@req.Status</span>
                             </div>
 
                             <div class="side-admin-summary">
                                 <p class="side-admin-label">Tool</p>
-                                <h4>@req.Tool.Name</h4>
+                                <p><strong>@req.Tool.Name</strong></p>
 
                                 <p>
                                     <strong>Category:</strong> @req.Tool.Category<br />
@@ -313,7 +308,7 @@
 
                             <div class="side-admin-summary">
                                 <p class="side-admin-label">Requested by</p>
-                                <h4>@FormatRequesterDisplay(req.RequestedByName, req.RequestedByEmail)</h4>
+                                <p><strong>@FormatRequesterDisplay(req.RequestedByName, req.RequestedByEmail)</strong></p>
                                 <p class="text-wrap">@GetRequesterEmailDisplay(req.RequestedByName, req.RequestedByEmail)</p>
                             </div>
 

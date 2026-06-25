@@ -222,10 +222,12 @@ font: inherit;
 .side-admin-summary + .side-admin-summary {
     border-top: 1px solid #eef2f6;
     padding-top: 12px;
+    margin-top: 15px;
 }
 
 /* Make uploaded files and actions area more spaced */
 .side-admin-summary .request-actions,
 .side-admin-summary .side-action-btn {
     margin-top: 12px;
+    margin-bottom: 22px;
 }

@@ -1498,6 +1498,11 @@ font: inherit;
     margin-bottom: 10px;
 }
 
+/* Increased spacing in right panel between summary blocks */
+.right-panel .side-admin-summary + .side-admin-summary {
+    margin-top: 15px !important;
+}
+
 .side-admin-summary p {
     margin: 6px 0;
     color: #111827;

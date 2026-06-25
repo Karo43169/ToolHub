@@ -50,6 +50,7 @@
     background: transparent;
     padding: 12px 10px;
     border-radius: 8px;
+    margin-bottom: 0;
 }
 
 .right-panel .side-admin-summary h4 {
@@ -64,9 +65,9 @@
     color: #374151;
 }
 
-.right-panel .request-status {
-    display: inline-block;
-    margin-top: 6px;
+.right-panel .side-admin-summary p strong {
+    color: #0f172a;
+    font-weight: 800;
 }
 
 .admin-header {
@@ -387,7 +388,7 @@
 .side-admin-summary + .side-admin-summary {
     border-top: 1px solid #eef2f6;
     padding-top: 10px;
-    margin-top: 10px;
+    margin-top: 15px !important;
 }
 
 /* Make side-admin labels bold */
