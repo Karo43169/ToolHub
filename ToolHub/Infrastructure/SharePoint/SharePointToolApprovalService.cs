@@ -134,6 +134,35 @@ public sealed class SharePointToolApprovalService
                     .PostAsync(new DriveItem { Name = versionFolderName, Folder = new Folder() }, cancellationToken: ct);
             }
 
+            // Create a version folder for the requested version and save changelog notes there so they are visible in the archive UI
+            if (!string.IsNullOrWhiteSpace(request.RequestedVersion))
+            {
+                var requestedVersionFolderName = SharePointToolPublishService.ToSafeSharePointSegment($"v{request.RequestedVersion.Trim()}");
+                if (string.IsNullOrWhiteSpace(requestedVersionFolderName))
+                    requestedVersionFolderName = $"v{DateTime.UtcNow:yyyyMMddHHmmss}";
+
+                try
+                {
+                    // ensure requested version folder exists (under archive)
+                    var reqFolder = await _graph.Drives[DriveId].Root.ItemWithPath($"{archivePath}/{requestedVersionFolderName}").GetAsync(cancellationToken: ct);
+                    if (reqFolder?.Id is null)
+                    {
+                        reqFolder = await _graph.Drives[DriveId].Items[archiveFolder.Id].Children.PostAsync(new DriveItem { Name = requestedVersionFolderName, Folder = new Folder() }, cancellationToken: ct);
+                    }
+
+                    // write changelog file from request.Notes into that folder
+                    if (reqFolder?.Id is not null && !string.IsNullOrWhiteSpace(request.Notes))
+                    {
+                        using var notesStream = new MemoryStream(Encoding.UTF8.GetBytes(request.Notes));
+                        await _graph.Drives[DriveId].Root.ItemWithPath($"{archivePath}/{requestedVersionFolderName}/CHANGELOG.md").Content.PutAsync(notesStream, cancellationToken: ct);
+                    }
+                }
+                catch
+                {
+                    // ignore errors writing changelog file
+                }
+            }
+
             // Move current children (files/folders) into archive/version folder (skip archive folder itself)
             var children = await _graph
                 .Drives[DriveId]
@@ -196,6 +225,41 @@ public sealed class SharePointToolApprovalService
                 }
             }
 
+            // Append changelog entry to the updated tool JSON so UI can read it directly from the tool record
+            try
+            {
+                if (!string.IsNullOrWhiteSpace(request.RequestedVersion))
+                {
+                    var reqVersion = request.RequestedVersion.Trim();
+                    var entryVersion = reqVersion.StartsWith("v", StringComparison.OrdinalIgnoreCase) ? reqVersion : "v" + reqVersion;
+
+                    var newEntry = new ChangeLogEntry(
+                        Version: entryVersion,
+                        Notes: request.Notes ?? string.Empty,
+                        CreatedAtUtc: request.RequestedAtUtc == default ? DateTimeOffset.UtcNow : request.RequestedAtUtc,
+                        RequestId: request.RequestId ?? string.Empty,
+                        CreatedByName: request.RequestedByName ?? string.Empty
+                    );
+
+                    var list = updatedTool.ChangeLog?.ToList() ?? new List<ChangeLogEntry>();
+                    if (!list.Any(e => string.Equals(e.RequestId, newEntry.RequestId, StringComparison.OrdinalIgnoreCase)))
+                    {
+                        list.Insert(0, newEntry);
+                        var finalTool = updatedTool with { ChangeLog = list };
+
+                        var json2 = JsonSerializer.Serialize(finalTool, JsonOptions);
+                        using var s2 = new MemoryStream(Encoding.UTF8.GetBytes(json2));
+                        await _graph.Drives[DriveId].Root.ItemWithPath($"{ToolsRoot}/{finalTool.Id}.json").Content.PutAsync(s2, cancellationToken: ct);
+
+                        updatedTool = finalTool;
+                    }
+                }
+            }
+            catch
+            {
+                // ignore changelog write errors
+            }
+
             return updatedTool;
         }
 
@@ -211,6 +275,20 @@ public sealed class SharePointToolApprovalService
             .Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries)
             .ToList();
 
+        // Prepare initial changelog entries for new tool if notes were provided in the request
+        var initialChangelog = new List<ChangeLogEntry>();
+        if (!string.IsNullOrWhiteSpace(request.Notes))
+        {
+            var ver = string.IsNullOrWhiteSpace(request.Tool.Version) ? string.Empty : (request.Tool.Version!.StartsWith("v", StringComparison.OrdinalIgnoreCase) ? request.Tool.Version : "v" + request.Tool.Version);
+            initialChangelog.Add(new ChangeLogEntry(
+                Version: ver,
+                Notes: request.Notes ?? string.Empty,
+                CreatedAtUtc: request.RequestedAtUtc == default ? DateTimeOffset.UtcNow : request.RequestedAtUtc,
+                RequestId: request.RequestId ?? string.Empty,
+                CreatedByName: request.RequestedByName ?? string.Empty
+            ));
+        }
+
         var tool = new ToolEntry(
             Id: toolId,
             Name: request.Tool.Name,
@@ -224,7 +302,8 @@ public sealed class SharePointToolApprovalService
             ManualPath: null,
             UpdatedAtUtc: DateTimeOffset.UtcNow,
             UpdatedByOid: approvedByOid,
-            UpdatedByName: approvedByName
+            UpdatedByName: approvedByName,
+            ChangeLog: initialChangelog.Count == 0 ? null : initialChangelog
         );
 
         var json = JsonSerializer.Serialize(

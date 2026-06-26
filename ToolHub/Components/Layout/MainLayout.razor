@@ -4,6 +4,7 @@
 @using Microsoft.AspNetCore.Components.Authorization
 @using Microsoft.JSInterop
 @using ToolHub.State
+@using System.Text.Json
 
 @inherits LayoutComponentBase
 @implements IDisposable
@@ -411,30 +412,35 @@
                         </div>
 
                         <div class="details-actions">
-                            <button class="top-btn"
-                                    disabled="@isOpeningToolLocation"
-                                    @onclick="OpenSelectedToolLocation">
-                                @(isOpeningToolLocation ? "Opening..." : "Open location")
-                            </button>
+                            <div style="display:flex; gap:8px; align-items:center; flex-wrap:wrap;">
+                                <button class="top-btn"
+                                        disabled="@isOpeningToolLocation"
+                                        @onclick="OpenSelectedToolLocation">
+                                    @(isOpeningToolLocation ? "Opening..." : "Open location")
+                                </button>
 
-                            @if (HubState.Selected is not null)
-                            {
-                                <ToolUpdateRequest Tool="HubState.Selected" />
-                            }
+                                @if (HubState.Selected is not null)
+                                {
+                                    <ToolUpdateRequest Tool="HubState.Selected" />
+                                    <button class="side-action-btn" @onclick="ShowChangeLogAsync">Change log</button>
+                                }
+                            </div>
 
                             @if (isAdmin)
                             {
-                                <button class="side-action-btn side-action-outline"
-                                        disabled="@isSavingToolMetadata"
-                                        @onclick="OpenEditToolWithLockAsync">
-                                    Edit tool
-                                </button>
+                                <div style="margin-top:12px; display:flex; gap:8px;">
+                                    <button class="side-action-btn side-action-outline"
+                                            disabled="@isSavingToolMetadata"
+                                            @onclick="OpenEditToolWithLockAsync">
+                                        Edit tool
+                                    </button>
 
-                                <button class="side-action-btn side-action-danger"
-                                        disabled="@isDeletingTool"
-                                        @onclick="DeleteSelectedToolAsync">
-                                    @(isDeletingTool ? "Deleting..." : "Delete tool")
-                                </button>
+                                    <button class="side-action-btn side-action-danger"
+                                            disabled="@isDeletingTool"
+                                            @onclick="DeleteSelectedToolAsync">
+                                        @(isDeletingTool ? "Deleting..." : "Delete tool")
+                                    </button>
+                                </div>
                             }
                         </div>
 
@@ -520,7 +526,8 @@
 @if (showModal)
 {
     <div class="modal-overlay">
-        <div class="modal-box">
+        <div class="modal-box" style="max-height:90vh; width:520px; max-width:95vw; overflow:hidden; border-radius:12px; padding-right:8px;">
+                    <div style="max-height:80vh; overflow-y:auto; padding:16px 24px 16px 16px; box-sizing:border-box; width:100%; scrollbar-gutter:stable;">
             <h3>@(isEdit ? "Edit Tool" : "Add Tool")</h3>
 
             <div class="form-group">
@@ -567,6 +574,44 @@
                 <input @bind="editTags" placeholder="tag1, tag2, tag3" />
             </div>
 
+            @if (isEdit)
+            {
+                <div class="form-group">
+                    <label>Change log</label>
+                    <div style="max-height:320px; overflow:auto; border:1px solid #eee; padding:8px;">
+                        @if (editChangeLog != null && editChangeLog.Count > 0)
+                        {
+                            @for (int i = 0; i < editChangeLog.Count; i++)
+                            {
+                                var entry = editChangeLog[i];
+                                <div style="border-bottom:1px solid #f0f0f0; padding-bottom:8px; margin-bottom:8px;">
+                                    <div class="form-group">
+                                        <label>Version</label>
+                                        <input @bind="entry.Version" readonly />
+                                    </div>
+
+                                    <div class="form-group">
+                                        <label>Notes</label>
+                                        <textarea @bind="entry.Notes"></textarea>
+                                    </div>
+
+                                    <div style="display:flex; gap:8px; align-items:center;">
+                                        <div style="font-size:12px; color:#6b7280; flex:1;">Created: @entry.CreatedAtUtc.ToLocalTime()</div>
+                                        <button class="side-action-btn side-action-danger" type="button" @onclick="() => RemoveChangeLogEntry(entry)">Delete</button>
+                                    </div>
+                                </div>
+                            }
+                        }
+                        else
+                        {
+                            <div class="muted">No change log entries</div>
+                        }
+                    </div>
+
+
+                </div>
+            }
+
             @if (isEdit && HubState.Selected is not null)
             {
                 <div class="form-group">
@@ -576,13 +621,14 @@
             }
 
             <div class="modal-actions">
-                <button class="top-btn" disabled="@isSavingToolMetadata" @onclick="Save">
+                <button type="button" class="top-btn" disabled="@isSavingToolMetadata" @onclick="Save">
                     @(isSavingToolMetadata ? "Saving..." : "Save")
                 </button>
-                <button class="top-btn" @onclick="CancelModalAsync">Cancel</button>
+                <button type="button" class="top-btn" @onclick="CancelModalAsync">Cancel</button>
             </div>
         </div>
     </div>
+</div>
 }
 
 @if (showContact)
@@ -599,6 +645,48 @@
 
             <div class="modal-actions">
                 <button class="top-btn" @onclick="CloseContact">Close</button>
+            </div>
+        </div>
+    </div>
+}
+
+@if (showChangeLog)
+{
+    <div class="modal-overlay">
+        <div class="modal-box" style="min-width:700px; max-width:95vw; position:relative; border-radius:12px;">
+            <!-- Subtelna ikona informacyjna w prawym górnym rogu, nieklikalna -->
+                <div style="position:absolute; top:12px; right:16px; opacity:0.14; pointer-events:none;">
+                <svg width="28" height="28" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+                    <path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2z" fill="#2563EB" />
+                    <path d="M11 10h2v6h-2zM11 7h2v2h-2z" fill="#ffffff" />
+                </svg>
+            </div>
+
+            <h3 style="margin-right:48px;">Change log</h3>
+
+            @if (HubState?.Selected?.ChangeLog != null && HubState.Selected.ChangeLog.Count > 0)
+            {
+                <div style="max-height:60vh; overflow-y:auto; overflow-x:hidden; padding-right:8px;">
+                    @foreach (var e in HubState.Selected.ChangeLog)
+                    {
+                        <div style="margin-bottom:12px; padding-bottom:8px; border-bottom:1px solid #eee;">
+                            <div style="font-weight:600;">@e.Version</div>
+                            <div style="color:#374151; margin-top:6px; white-space:pre-wrap; overflow-wrap:break-word; word-break:break-word; font-size:15px; line-height:1.5;">@(string.IsNullOrWhiteSpace(e.Notes) ? "No notes available." : e.Notes)</div>
+                            @if (!string.IsNullOrWhiteSpace(e.RequestId))
+                            {
+                                <div style="font-size:12px; color:#6b7280; margin-top:6px;">Source: @e.RequestId</div>
+                            }
+                        </div>
+                    }
+                </div>
+            }
+            else
+            {
+                <div class="muted">No change log entries available.</div>
+            }
+
+            <div class="modal-actions">
+                <button class="top-btn" @onclick="CloseChangeLog">Close</button>
             </div>
         </div>
     </div>
@@ -639,6 +727,16 @@
     private string editVersion = "1.0.0";
     private string editDescription = "";
     private string editTags = "";
+    private List<EditChangeLogItem>? editChangeLog;
+
+    private sealed class EditChangeLogItem
+    {
+        public string Version { get; set; } = string.Empty;
+        public string Notes { get; set; } = string.Empty;
+        public DateTimeOffset CreatedAtUtc { get; set; }
+        public string RequestId { get; set; } = string.Empty;
+        public string CreatedByName { get; set; } = string.Empty;
+    }
 
     private bool IsAdminPage =>
         Nav.ToBaseRelativePath(Nav.Uri)
@@ -677,6 +775,40 @@
     private void OnHubStateChanged()
     {
         InvokeAsync(StateHasChanged);
+    }
+
+    private void AddChangeLogEntry()
+    {
+        if (editChangeLog == null)
+            editChangeLog = new List<EditChangeLogItem>();
+
+        editChangeLog.Insert(0, new EditChangeLogItem { CreatedAtUtc = DateTimeOffset.UtcNow });
+        _ = InvokeAsync(StateHasChanged);
+    }
+
+    private void RemoveChangeLogEntry(EditChangeLogItem item)
+    {
+        if (editChangeLog == null)
+            return;
+
+        // Remove matching item and refresh UI
+        var removed = editChangeLog.Remove(item);
+        if (removed)
+        {
+            _ = InvokeAsync(StateHasChanged);
+        }
+    }
+
+    private void RemoveChangeLogEntryAt(int index)
+    {
+        if (editChangeLog == null)
+            return;
+
+        if (index < 0 || index >= editChangeLog.Count)
+            return;
+
+        editChangeLog.RemoveAt(index);
+        _ = InvokeAsync(StateHasChanged);
     }
 
     public void Dispose()
@@ -781,15 +913,25 @@
 
         isEdit = true;
 
-        editName = HubState.Selected.Name;
-        editCategory = HubState.Selected.Category;
-        editOwner = HubState.Selected.Owner;
-        editStatus = HubState.Selected.Status;
-        editVersion = HubState.Selected.Version;
-        editDescription = HubState.Selected.Description;
-        editTags = string.Join(", ", HubState.Selected.Tags);
+                editName = HubState.Selected.Name;
+                editCategory = HubState.Selected.Category;
+                editOwner = HubState.Selected.Owner;
+                editStatus = HubState.Selected.Status;
+                editVersion = HubState.Selected.Version;
+                editDescription = HubState.Selected.Description;
+                editTags = string.Join(", ", HubState.Selected.Tags);
 
-        showModal = true;
+                // Initialize editable changelog from selected tool
+                editChangeLog = HubState.Selected.ChangeLog?.Select(e => new EditChangeLogItem
+                {
+                    Version = e.Version,
+                    Notes = e.Notes,
+                    RequestId = e.RequestId,
+                    CreatedByName = e.CreatedByName,
+                    CreatedAtUtc = e.CreatedAtUtc
+                }).ToList() ?? new List<EditChangeLogItem>();
+
+                showModal = true;
     }
 
     private async Task<bool> TryAcquireAdminEditLockAsync()
@@ -840,6 +982,7 @@
         if (isEdit)
         {
             isEdit = false;
+            editChangeLog = null;
             await ReleaseAdminEditLockAsync();
         }
     }
@@ -865,25 +1008,40 @@
                 var authState = await AuthStateProvider.GetAuthenticationStateAsync();
                 var user = authState.User;
 
-                var updated = await ToolUpdateService.UpdateAsync(
-                    HubState.Selected,
-                    new ToolHub.Infrastructure.SharePoint.ToolUpdateInput(
-                        Name: editName,
-                        Category: editCategory,
-                        Owner: editOwner,
-                        Status: editStatus,
-                        Version: editVersion,
-                        Description: editDescription,
-                        Tags: editTags),
-                    GetOid(user),
-                    GetDisplayName(user),
-                    CancellationToken.None);
+                // Prepare ChangeLog for update (map from editable items)
+                                IReadOnlyList<ChangeLogEntry>? changeLogParam = null;
+                                if (editChangeLog != null && editChangeLog.Count > 0)
+                                {
+                                    changeLogParam = editChangeLog.Select(c => new ChangeLogEntry(
+                                        Version: string.IsNullOrWhiteSpace(c.Version) ? string.Empty : c.Version.Trim(),
+                                        Notes: c.Notes ?? string.Empty,
+                                        CreatedAtUtc: c.CreatedAtUtc == default ? DateTimeOffset.UtcNow : c.CreatedAtUtc,
+                                        RequestId: c.RequestId ?? string.Empty,
+                                        CreatedByName: c.CreatedByName ?? string.Empty)).ToList();
+                                }
+
+                                var updated = await ToolUpdateService.UpdateAsync(
+                                    HubState.Selected,
+                                    new ToolHub.Infrastructure.SharePoint.ToolUpdateInput(
+                                        Name: editName,
+                                        Category: editCategory,
+                                        Owner: editOwner,
+                                        Status: editStatus,
+                                        Version: editVersion,
+                                        Description: editDescription,
+                                        Tags: editTags,
+                                        ChangeLog: changeLogParam),
+                                    GetOid(user),
+                                    GetDisplayName(user),
+                                    CancellationToken.None);
 
 
                 HubState.Update(updated);
                 ToolCatalogCache.RefreshInBackground();
 
                 toolEditMessage = $"Updated: {updated.Name}";
+                                // Update local state changelog if present
+                                editChangeLog = null;
                 showModal = false;
             }
             catch (Exception ex)
@@ -1304,5 +1462,42 @@
     private void CloseContact()
     {
         showContact = false;
+    }
+
+    // Change log support
+    private bool showChangeLog = false;
+    private bool isLoadingChangeLog = false;
+    private List<string> changeLogVersions = new();
+    private Dictionary<string, string> changeLogNotes = new();
+    private Dictionary<string, string> changeLogSources = new();
+    private List<string> changeLogDebug = new();
+
+    private const string RequestJsonRoot = "Platform Components/Application Components/request";
+    private const string DriveId = "b!2ge_DiOoQkCldtyXYKQlBt94szrqgR5FloI_q5-cMt2RpmoBW1JCTpwXmIwGZ5ND";
+
+    private static string NormalizeForCompare(string value)
+    {
+        if (string.IsNullOrWhiteSpace(value))
+            return string.Empty;
+
+        var chars = value.Where(char.IsLetterOrDigit).ToArray();
+        return new string(chars).ToLowerInvariant();
+    }
+
+    private async Task ShowChangeLogAsync()
+    {
+        if (HubState.Selected is null)
+            return;
+
+        // simply show modal and let UI read from HubState.Selected.ChangeLog (written during approval)
+        showChangeLog = true;
+        await InvokeAsync(StateHasChanged);
+    }
+
+    private void CloseChangeLog()
+    {
+        showChangeLog = false;
+        changeLogVersions.Clear();
+        changeLogNotes.Clear();
     }
 }

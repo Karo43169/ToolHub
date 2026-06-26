@@ -1,5 +1,13 @@
 ﻿namespace ToolHub.Domain.Models;
 
+public sealed record ChangeLogEntry(
+    string Version,
+    string Notes,
+    DateTimeOffset CreatedAtUtc,
+    string RequestId,
+    string CreatedByName
+);
+
 public sealed record ToolEntry(
     string Id,
     string Name,
@@ -13,5 +21,6 @@ public sealed record ToolEntry(
     string? ManualPath,
     DateTimeOffset UpdatedAtUtc,
     string UpdatedByOid,
-    string UpdatedByName
+    string UpdatedByName,
+    IReadOnlyList<ChangeLogEntry>? ChangeLog = null
 );

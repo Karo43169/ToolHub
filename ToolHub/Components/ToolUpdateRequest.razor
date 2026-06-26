@@ -9,75 +9,75 @@
 @inject IJSRuntime JS
 
 @* Compact button that matches existing UI classes. The modal reuses app modal styles. Labels in English to match app language. *@
-<div style="display: contents;">
-    @if (!show)
+<button class="side-action-btn" @onclick="OpenModalAsync" disabled="@isSubmitting">Request update</button>
+
+@if (!string.IsNullOrEmpty(resultMessage))
+{
+    <div class="side-admin-message" style="margin-top:8px;">@resultMessage</div>
+    @if (!string.IsNullOrWhiteSpace(resultUrl))
     {
-        <button class="side-action-btn" @onclick="OpenModalAsync" disabled="@isSubmitting">Request update</button>
-
-        @if (!string.IsNullOrEmpty(resultMessage))
-        {
-            <div class="side-admin-message" style="margin-top:8px;">@resultMessage</div>
-            @if (!string.IsNullOrWhiteSpace(resultUrl))
-            {
-                <div style="margin-top:6px;">
-                    <a class="side-action-btn side-action-outline" href="@resultUrl" target="_blank">Open files folder</a>
-                </div>
-            }
-        }
-    }
-    else
-    {
-        <div class="modal-overlay">
-            <div class="modal-box">
-                <h3>Request update</h3>
-
-                @if (!isSubmitting)
-                {
-                    <div class="form-group">
-                        <label>Version</label>
-                        <input @bind="requestedVersion" />
-                        @if (!string.IsNullOrEmpty(validationMessage))
-                        {
-                            <div class="side-admin-message" style="color:#b91c1c; margin-top:6px;">@validationMessage</div>
-                        }
-                    </div>
-
-                    <div class="form-group">
-                        <label>Reason</label>
-                        <textarea @bind="reason"></textarea>
-                    </div>
-
-                    <div class="form-group">
-                        <label>Notes (optional)</label>
-                        <textarea @bind="notes"></textarea>
-                    </div>
-
-                    <div class="modal-actions">
-                        <button class="top-btn" @onclick="SubmitAsyncInternal">Submit</button>
-                        <button class="top-btn" @onclick="Cancel">Cancel</button>
-                    </div>
-                }
-                else
-                {
-                    <div class="loading-container">
-                        <div class="loading-spinner"></div>
-                        <div class="loading-text">@(string.IsNullOrEmpty(resultMessage) ? "Processing request..." : resultMessage)</div>
-                    </div>
-                }
-
-                @if (!string.IsNullOrEmpty(resultMessage) && resultMessage.StartsWith("Error:"))
-                {
-                    <div class="form-group">
-                        <div class="side-admin-message" style="color:#b91c1c;">@resultMessage</div>
-                        <div style="margin-top:12px;">
-                            <button class="top-btn" @onclick="Cancel">Close</button>
-                        </div>
-                    </div>
-                }
-            </div>
+        <div style="margin-top:6px;">
+            <a class="side-action-btn side-action-outline" href="@resultUrl" target="_blank">Open files folder</a>
         </div>
     }
-</div>
+}
+
+@if (show)
+{
+    <div class="modal-overlay">
+        <div class="modal-box">
+            <h3>Request update</h3>
+
+            @if (!isSubmitting)
+            {
+                <div class="form-group">
+                    <label>Version</label>
+                    <input @bind="requestedVersion" />
+                    @if (!string.IsNullOrEmpty(validationMessage))
+                    {
+                        <div class="side-admin-message" style="color:#b91c1c; margin-top:6px;">@validationMessage</div>
+                    }
+                </div>
+
+                <div class="form-group">
+                    <label>Reason</label>
+                    <textarea @bind="reason"></textarea>
+                </div>
+
+                <div class="form-group">
+                    <label>Changelog notes</label>
+                    <textarea @bind="notes"></textarea>
+                    @if (!string.IsNullOrEmpty(notesValidationMessage))
+                    {
+                        <div class="side-admin-message" style="color:#b91c1c; margin-top:6px;">@notesValidationMessage</div>
+                    }
+                </div>
+
+                <div class="modal-actions">
+                    <button class="top-btn" @onclick="SubmitAsyncInternal">Submit</button>
+                    <button class="top-btn" @onclick="Cancel">Cancel</button>
+                </div>
+            }
+            else
+            {
+                <div class="loading-container">
+                    <div class="loading-spinner"></div>
+                    <div class="loading-text">@(string.IsNullOrEmpty(resultMessage) ? "Processing request..." : resultMessage)</div>
+                </div>
+            }
+
+            @if (!string.IsNullOrEmpty(resultMessage) && resultMessage.StartsWith("Error:"))
+            {
+                <div class="form-group">
+                    <div class="side-admin-message" style="color:#b91c1c;">@resultMessage</div>
+                    <div style="margin-top:12px;">
+                        <button class="top-btn" @onclick="Cancel">Close</button>
+                    </div>
+                </div>
+            }
+        </div>
+    </div>
+}
 
 @code {
     [Parameter] public ToolEntry Tool { get; set; } = default!;
@@ -87,6 +87,7 @@
     private string? resultUrl;
     private string resultMessage = string.Empty;
     private string validationMessage = string.Empty;
+    private string notesValidationMessage = string.Empty;
 
     private string requestedVersion = string.Empty;
     private string reason = string.Empty;
@@ -101,6 +102,7 @@
         resultMessage = string.Empty;
         resultUrl = null;
         validationMessage = string.Empty;
+        notesValidationMessage = string.Empty;
 
         // Pre-fetch archive versions to help client-side validation
         try
@@ -126,6 +128,7 @@
         reason = string.Empty;
         notes = string.Empty;
         validationMessage = string.Empty;
+        notesValidationMessage = string.Empty;
     }
 
     private static string NormalizeForCompare(string value)
@@ -175,9 +178,18 @@
             // ignore archive-check errors, allow submit to proceed
         }
 
+        // Validate changelog notes (now required)
+        if (string.IsNullOrWhiteSpace(notes))
+        {
+            notesValidationMessage = "Changelog notes are required.";
+            validationMessage = string.Empty;
+            return;
+        }
+
         // Set loading state but keep modal open to show progress
         isSubmitting = true;
         validationMessage = string.Empty;
+        notesValidationMessage = string.Empty;
         resultMessage = "Processing request...";
         await InvokeAsync(StateHasChanged);
 

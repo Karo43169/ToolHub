@@ -44,8 +44,8 @@ public sealed class SharePointToolStore : IToolStore
                 return new DataResult<IReadOnlyList<ToolEntry>>(DataStatus.Ok, tools);
             }
 
-            // 2️⃣ Czytaj tylko pliki *.json
-            foreach (var item in items.Value.Where(i => i.Name!.EndsWith(".json")))
+            // 2️⃣ Czytaj tylko pliki *.json, ignoruj backupy restore_*.json
+            foreach (var item in items.Value.Where(i => i.Name!.EndsWith(".json") && !i.Name!.StartsWith("restore_", StringComparison.OrdinalIgnoreCase)))
             {
                 Console.WriteLine($">>> Reading JSON: {item.Name}");
 

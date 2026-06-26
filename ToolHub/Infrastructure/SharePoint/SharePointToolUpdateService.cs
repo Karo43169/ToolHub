@@ -38,6 +38,45 @@ public sealed class SharePointToolUpdateService
         if (string.IsNullOrWhiteSpace(currentTool.Id))
             throw new InvalidOperationException("Tool id cannot be empty.");
 
+        // Create a restore point by saving the current tool JSON before applying updates.
+        try
+        {
+            // Remove any previous restore files for this tool to avoid cluttering the folder.
+            try
+            {
+                var children = await _graph.Drives[DriveId].Root.ItemWithPath(ToolsRoot).Children.GetAsync(cancellationToken: ct);
+                if (children?.Value != null)
+                {
+                    foreach (var child in children.Value.Where(c => !string.IsNullOrEmpty(c.Name) && c.Name.StartsWith($"restore_{currentTool.Id}_", StringComparison.OrdinalIgnoreCase)))
+                    {
+                        try
+                        {
+                            if (!string.IsNullOrEmpty(child.Id))
+                                await _graph.Drives[DriveId].Items[child.Id].DeleteAsync(cancellationToken: ct);
+                        }
+                        catch
+                        {
+                            // ignore deletion errors for individual restore files
+                        }
+                    }
+                }
+            }
+            catch
+            {
+                // ignore listing/deletion errors - continue to create a new restore
+            }
+
+            var timestamp = DateTime.UtcNow.ToString("yyyyMMddHHmmss");
+            var restorePath = $"{ToolsRoot}/restore_{currentTool.Id}_{timestamp}.json";
+            var currentJson = JsonSerializer.Serialize(currentTool, JsonOptions);
+            using var rs = new MemoryStream(Encoding.UTF8.GetBytes(currentJson));
+            await _graph.Drives[DriveId].Root.ItemWithPath(restorePath).Content.PutAsync(rs, cancellationToken: ct);
+        }
+        catch
+        {
+            // ignore restore point errors - update should still proceed
+        }
+
         var tags = input.Tags
             .Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries)
             .ToList();
@@ -53,7 +92,8 @@ public sealed class SharePointToolUpdateService
             Tags = tags,
             UpdatedAtUtc = DateTimeOffset.UtcNow,
             UpdatedByOid = updatedByOid,
-            UpdatedByName = updatedByName
+            UpdatedByName = updatedByName,
+            ChangeLog = input.ChangeLog ?? currentTool.ChangeLog
         };
 
         var json = JsonSerializer.Serialize(updatedTool, JsonOptions);
@@ -77,4 +117,5 @@ public sealed record ToolUpdateInput(
     string Status,
     string Version,
     string Description,
-    string Tags);
+    string Tags,
+    IReadOnlyList<ChangeLogEntry>? ChangeLog = null);
