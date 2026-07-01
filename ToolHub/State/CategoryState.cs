@@ -8,6 +8,7 @@ public sealed class CategoryState
         "Data Processing",
         "Diagnostics",
         "Documentation",
+        "Standards",
         "DXQ",
         "Firmware / Hardware Tools",
         "Manuals",
