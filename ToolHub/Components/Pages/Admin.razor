@@ -129,6 +129,7 @@ else
                             <small class="text-wrap">@GetRequesterEmailDisplay(req.RequestedByName, req.RequestedByEmail)</small>
                         </div>
 
+
                         <div class="request-description">
                             <div class="request-desc-text text-wrap">@BreakLongTokens(req.Tool.Description)</div>
                             @if (string.Equals(req.Type, "UpdateTool", StringComparison.OrdinalIgnoreCase))
@@ -199,6 +200,8 @@ else
                             <strong>@FormatRequesterDisplay(req.RequestedByName, req.RequestedByEmail)</strong>
                             <small class="text-wrap">@GetRequesterEmailDisplay(req.RequestedByName, req.RequestedByEmail)</small>
                         </div>
+
+
 
                         <div class="request-user">
                             <span>@GetProcessedByLabel(req)</span>

@@ -22,5 +22,7 @@ public sealed record ToolEntry(
     DateTimeOffset UpdatedAtUtc,
     string UpdatedByOid,
     string UpdatedByName,
+    bool RestrictUpdateRequestsToOwner,
+    IReadOnlyList<string>? AllowedUpdateRequesterEmails,
     IReadOnlyList<ChangeLogEntry>? ChangeLog = null
 );

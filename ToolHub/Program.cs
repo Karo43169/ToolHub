@@ -6,6 +6,11 @@ using Azure.Identity;
 
 var builder = WebApplication.CreateBuilder(args);
 
+// Global impersonation toggle (1 = enabled, 0 = disabled)
+// Edit this value to enable/disable query-string impersonation during local testing.
+// ?impersonateEmail=jan.kowalski@firma.pl
+ToolHub.Infrastructure.Impersonation.ImpersonationSettings.Enabled = 0;
+
 // Wczytaj zmienne środowiskowe
 builder.Configuration.AddEnvironmentVariables();
 

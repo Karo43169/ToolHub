@@ -82,7 +82,6 @@ public sealed class SharePointToolRequestService
 
             applicationReqFolder = $"{ApplicationReqRoot}/{sanitizedFolderName}",
             applicationReqFolderUrl = folder?.WebUrl,
-
             tool = new
             {
                 name = input.Name,
@@ -91,7 +90,9 @@ public sealed class SharePointToolRequestService
                 status = input.Status,
                 version = input.Version,
                 description = input.Description,
-                tags = input.Tags
+                tags = input.Tags,
+                restrictUpdateRequestsToOwner = input.RestrictUpdateRequestsToOwner,
+                allowedUpdateRequesterEmails = input.AllowedUpdateRequesterEmails
             }
         };
 
@@ -162,7 +163,9 @@ public sealed class SharePointToolRequestService
                 status = input.Status,
                 version = input.Version,
                 description = input.Description,
-                tags = input.Tags
+                tags = input.Tags,
+                restrictUpdateRequestsToOwner = input.RestrictUpdateRequestsToOwner,
+                allowedUpdateRequesterEmails = input.AllowedUpdateRequesterEmails
             }
         };
 
@@ -196,6 +199,8 @@ public sealed record CreateToolRequestInput(
     string Version,
     string Description,
     string Tags,
+    bool RestrictUpdateRequestsToOwner,
+    string? AllowedUpdateRequesterEmails,
     string RequestedByOid,
     string RequestedByName,
     string RequestedByEmail
@@ -213,6 +218,8 @@ public sealed record CreateToolUpdateRequestInput(
     string RequestedVersion,
     string Reason,
     string Notes,
+    bool RestrictUpdateRequestsToOwner,
+    string? AllowedUpdateRequesterEmails,
     string RequestedByOid,
     string RequestedByName,
     string RequestedByEmail

@@ -81,6 +81,12 @@ public sealed class SharePointToolUpdateService
             .Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries)
             .ToList();
 
+        var allowedList = input.AllowedUpdateRequesterEmails is null
+            ? new List<string>()
+            : input.AllowedUpdateRequesterEmails
+                .Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries)
+                .ToList();
+
         var updatedTool = currentTool with
         {
             Name = input.Name.Trim(),
@@ -90,6 +96,8 @@ public sealed class SharePointToolUpdateService
             Version = input.Version.Trim(),
             Description = input.Description.Trim(),
             Tags = tags,
+            RestrictUpdateRequestsToOwner = input.RestrictUpdateRequestsToOwner,
+            AllowedUpdateRequesterEmails = allowedList,
             UpdatedAtUtc = DateTimeOffset.UtcNow,
             UpdatedByOid = updatedByOid,
             UpdatedByName = updatedByName,
@@ -118,4 +126,6 @@ public sealed record ToolUpdateInput(
     string Version,
     string Description,
     string Tags,
+    bool RestrictUpdateRequestsToOwner = false,
+    string? AllowedUpdateRequesterEmails = null,
     IReadOnlyList<ChangeLogEntry>? ChangeLog = null);

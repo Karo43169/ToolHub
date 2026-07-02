@@ -200,7 +200,9 @@
                                 <p>
                                     <strong>Category:</strong> @req.Tool.Category<br />
                                     <strong>Version:</strong> @(string.Equals(req.Type, "UpdateTool", StringComparison.OrdinalIgnoreCase) ? (req.RequestedVersion ?? req.Tool.Version) : req.Tool.Version)<br />
-                                    <strong>Owner:</strong> @req.Tool.Owner
+                                    <strong>Owner:</strong> @req.Tool.Owner<br />
+                                    <strong>Restrict update requests to owner:</strong> @(req.Tool.RestrictUpdateRequestsToOwner ? "Yes" : "No")<br />
+                                    <strong>Allowed requester emails:</strong> @(string.IsNullOrWhiteSpace(req.Tool.AllowedUpdateRequesterEmails) ? "(none)" : req.Tool.AllowedUpdateRequesterEmails)
                                 </p>
                             </div>
 
@@ -209,6 +211,10 @@
                                 <p><strong>@FormatRequesterDisplay(req.RequestedByName, req.RequestedByEmail)</strong></p>
                                 <p class="text-wrap">@GetRequesterEmailDisplay(req.RequestedByName, req.RequestedByEmail)</p>
                             </div>
+
+
+
+                            <!-- Request options are shown above inside the Tool summary -->
 
                             <div class="side-admin-summary">
                                 <p class="side-admin-label">Processed by</p>
@@ -303,9 +309,13 @@
                                 <p>
                                     <strong>Category:</strong> @req.Tool.Category<br />
                                     <strong>Version:</strong> @(string.Equals(req.Type, "UpdateTool", StringComparison.OrdinalIgnoreCase) ? (req.RequestedVersion ?? req.Tool.Version) : req.Tool.Version)<br />
-                                    <strong>Owner:</strong> @req.Tool.Owner
+                                    <strong>Owner:</strong> @req.Tool.Owner<br />
+                                    <strong>Restrict update requests to owner:</strong> @(req.Tool.RestrictUpdateRequestsToOwner ? "Yes" : "No")<br />
+                                    <strong>Allowed requester emails:</strong> @(string.IsNullOrWhiteSpace(req.Tool.AllowedUpdateRequesterEmails) ? "(none)" : req.Tool.AllowedUpdateRequesterEmails)
                                 </p>
                             </div>
+
+                            <!-- Restriction visibility block removed (duplicate) -->
 
                             <div class="side-admin-summary">
                                 <p class="side-admin-label">Requested by</p>
@@ -530,6 +540,11 @@
                     <div style="max-height:80vh; overflow-y:auto; padding:16px 24px 16px 16px; box-sizing:border-box; width:100%; scrollbar-gutter:stable;">
             <h3>@(isEdit ? "Edit Tool" : "Add Tool")</h3>
 
+            @if (!string.IsNullOrWhiteSpace(toolEditMessage))
+            {
+                <div class="side-admin-message" style="margin-top:8px;">@toolEditMessage</div>
+            }
+
             <div class="form-group">
                 <label>Name</label>
                 <input @bind="editName" />
@@ -572,6 +587,18 @@
             <div class="form-group">
                 <label>Tags (comma separated)</label>
                 <input @bind="editTags" placeholder="tag1, tag2, tag3" />
+            </div>
+
+            <div class="form-group">
+                <label style="display:flex; align-items:center; gap:8px;">
+                    <input type="checkbox" @bind="editRestrictUpdateRequestsToOwner" />
+                    <span>Restrict update requests to owner only</span>
+                </label>
+            </div>
+
+            <div class="form-group">
+                <label>Additional allowed requesters (comma separated emails)</label>
+                <input @bind="editAllowedRequesters" placeholder="someone@example.com, other@example.com" />
             </div>
 
             @if (isEdit)
@@ -728,6 +755,8 @@
     private string editVersion = "1.0.0";
     private string editDescription = "";
     private string editTags = "";
+    private bool editRestrictUpdateRequestsToOwner = false;
+    private string editAllowedRequesters = "";
     private List<EditChangeLogItem>? editChangeLog;
 
     private sealed class EditChangeLogItem
@@ -896,6 +925,9 @@
         editDescription = "";
         editTags = "";
 
+        editRestrictUpdateRequestsToOwner = false;
+        editAllowedRequesters = string.Empty;
+
         showModal = true;
     }
 
@@ -931,6 +963,12 @@
                     CreatedByName = e.CreatedByName,
                     CreatedAtUtc = e.CreatedAtUtc
                 }).ToList() ?? new List<EditChangeLogItem>();
+
+                // initialize restriction fields from selected tool
+                editRestrictUpdateRequestsToOwner = HubState.Selected.RestrictUpdateRequestsToOwner;
+                editAllowedRequesters = HubState.Selected.AllowedUpdateRequesterEmails is null
+                    ? string.Empty
+                    : string.Join(", ", HubState.Selected.AllowedUpdateRequesterEmails);
 
                 showModal = true;
     }
@@ -991,7 +1029,11 @@
     private async Task Save()
     {
         if (string.IsNullOrWhiteSpace(editName))
+        {
+            toolEditMessage = "Name is required.";
+            await InvokeAsync(StateHasChanged);
             return;
+        }
 
         if (isEdit && HubState.Selected != null)
         {
@@ -1006,8 +1048,7 @@
                 isSavingToolMetadata = true;
                 toolEditMessage = null;
 
-                var authState = await AuthStateProvider.GetAuthenticationStateAsync();
-                var user = authState.User;
+                var user = await GetEffectiveUserAsync();
 
                 // Prepare ChangeLog for update (map from editable items)
                                 IReadOnlyList<ChangeLogEntry>? changeLogParam = null;
@@ -1021,7 +1062,7 @@
                                         CreatedByName: c.CreatedByName ?? string.Empty)).ToList();
                                 }
 
-                                var updated = await ToolUpdateService.UpdateAsync(
+                var updated = await ToolUpdateService.UpdateAsync(
                                     HubState.Selected,
                                     new ToolHub.Infrastructure.SharePoint.ToolUpdateInput(
                                         Name: editName,
@@ -1031,6 +1072,8 @@
                                         Version: editVersion,
                                         Description: editDescription,
                                         Tags: editTags,
+                                        RestrictUpdateRequestsToOwner: editRestrictUpdateRequestsToOwner,
+                                        AllowedUpdateRequesterEmails: editAllowedRequesters,
                                         ChangeLog: changeLogParam),
                                     GetOid(user),
                                     GetDisplayName(user),
@@ -1070,8 +1113,7 @@
 
         try
         {
-            var authStateAdd = await AuthStateProvider.GetAuthenticationStateAsync();
-            var addUser = authStateAdd.User;
+            var addUser = await GetEffectiveUserAsync();
 
             var result = await ToolRequestService.CreateAsync(
                 new ToolHub.Infrastructure.SharePoint.CreateToolRequestInput(
@@ -1082,6 +1124,8 @@
                     Version: editVersion,
                     Description: editDescription,
                     Tags: editTags,
+                    RestrictUpdateRequestsToOwner: editRestrictUpdateRequestsToOwner,
+                    AllowedUpdateRequesterEmails: string.IsNullOrWhiteSpace(editAllowedRequesters) ? null : editAllowedRequesters,
                     RequestedByOid: GetOid(addUser),
                     RequestedByName: GetDisplayName(addUser),
                     RequestedByEmail: GetEmail(addUser)
@@ -1453,6 +1497,51 @@
         return user.FindFirst("http://schemas.microsoft.com/identity/claims/objectidentifier")?.Value
             ?? user.FindFirst("oid")?.Value
             ?? "";
+    }
+
+    private async Task<System.Security.Claims.ClaimsPrincipal> GetEffectiveUserAsync()
+    {
+        // Respect global toggle
+        if (ToolHub.Infrastructure.Impersonation.ImpersonationSettings.Enabled != 1)
+        {
+            var st = await AuthStateProvider.GetAuthenticationStateAsync();
+            return st.User;
+        }
+
+        try
+        {
+            var uri = Nav.ToAbsoluteUri(Nav.Uri);
+            var q = Microsoft.AspNetCore.WebUtilities.QueryHelpers.ParseQuery(uri.Query);
+
+            if (q.TryGetValue("impersonateEmail", out var emailVals) || q.TryGetValue("impersonateOid", out var oidVals))
+            {
+                var email = q.TryGetValue("impersonateEmail", out var ev) ? ev.ToString() : string.Empty;
+                var oid = q.TryGetValue("impersonateOid", out var ov) ? ov.ToString() : string.Empty;
+
+                var claims = new List<System.Security.Claims.Claim>();
+                if (!string.IsNullOrWhiteSpace(email))
+                {
+                    claims.Add(new System.Security.Claims.Claim(System.Security.Claims.ClaimTypes.Email, email));
+                    claims.Add(new System.Security.Claims.Claim("preferred_username", email));
+                    claims.Add(new System.Security.Claims.Claim("name", email));
+                }
+                if (!string.IsNullOrWhiteSpace(oid))
+                {
+                    claims.Add(new System.Security.Claims.Claim("http://schemas.microsoft.com/identity/claims/objectidentifier", oid));
+                    claims.Add(new System.Security.Claims.Claim("oid", oid));
+                }
+
+                var identity = new System.Security.Claims.ClaimsIdentity(claims, "Impersonation");
+                return new System.Security.Claims.ClaimsPrincipal(identity);
+            }
+        }
+        catch
+        {
+            // ignore
+        }
+
+        var st2 = await AuthStateProvider.GetAuthenticationStateAsync();
+        return st2.User;
     }
 
     private void ShowContact()

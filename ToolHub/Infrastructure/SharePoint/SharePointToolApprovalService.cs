@@ -289,6 +289,12 @@ public sealed class SharePointToolApprovalService
             ));
         }
 
+        var allowedEmails = request.Tool.AllowedUpdateRequesterEmails is null
+            ? new List<string>()
+            : request.Tool.AllowedUpdateRequesterEmails
+                .Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries)
+                .ToList();
+
         var tool = new ToolEntry(
             Id: toolId,
             Name: request.Tool.Name,
@@ -303,6 +309,8 @@ public sealed class SharePointToolApprovalService
             UpdatedAtUtc: DateTimeOffset.UtcNow,
             UpdatedByOid: approvedByOid,
             UpdatedByName: approvedByName,
+            RestrictUpdateRequestsToOwner: request.Tool.RestrictUpdateRequestsToOwner,
+            AllowedUpdateRequesterEmails: allowedEmails,
             ChangeLog: initialChangelog.Count == 0 ? null : initialChangelog
         );
 

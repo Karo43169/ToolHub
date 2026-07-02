@@ -3,13 +3,20 @@
 @using Microsoft.JSInterop
 @using ToolHub.Domain.Models
 @using ToolHub.Infrastructure.SharePoint
+@using Microsoft.AspNetCore.WebUtilities
+@using ToolHub.Infrastructure.Impersonation
+
 @inject SharePointToolRequestService RequestService
 @inject SharePointToolLocationService ToolLocationService
 @inject AuthenticationStateProvider AuthStateProvider
 @inject IJSRuntime JS
+@inject ToolHub.Infrastructure.SharePoint.SharePointAdminService AdminService
+@inject NavigationManager Nav
 
 @* Compact button that matches existing UI classes. The modal reuses app modal styles. Labels in English to match app language. *@
-<button class="side-action-btn" @onclick="OpenModalAsync" disabled="@isSubmitting">Request update</button>
+<div style="display:flex; align-items:center; gap:8px;">
+    <button class="side-action-btn" @onclick="OpenModalAsync" disabled="@isSubmitting">Request update</button>
+</div>
 
 @if (!string.IsNullOrEmpty(resultMessage))
 {
@@ -30,6 +37,11 @@
 
             @if (!isSubmitting)
             {
+                @if (!canRequest)
+                {
+                    <div class="side-admin-message" style="color:#b91c1c; margin-bottom:8px;">You are not allowed to create update requests for this tool.</div>
+                }
+
                 <div class="form-group">
                     <label>Version</label>
                     <input @bind="requestedVersion" />
@@ -54,7 +66,7 @@
                 </div>
 
                 <div class="modal-actions">
-                    <button class="top-btn" @onclick="SubmitAsyncInternal">Submit</button>
+                    <button class="top-btn" @onclick="SubmitAsyncInternal" disabled="@(!canRequest)">Submit</button>
                     <button class="top-btn" @onclick="Cancel">Cancel</button>
                 </div>
             }
@@ -84,6 +96,7 @@
 
     private bool show = false;
     private bool isSubmitting = false;
+    private bool canRequest = true;
     private string? resultUrl;
     private string resultMessage = string.Empty;
     private string validationMessage = string.Empty;
@@ -113,6 +126,49 @@
         catch
         {
             // ignore errors - proceed with modal
+        }
+
+        // determine effective user (supports impersonation via query string in dev)
+        try
+        {
+            var user = await GetEffectiveUserAsync();
+            var oid = user.FindFirst("http://schemas.microsoft.com/identity/claims/objectidentifier")?.Value ?? string.Empty;
+            var isAdmin = await AdminService.IsAdminAsync(oid, CancellationToken.None);
+
+            if (isAdmin)
+            {
+                canRequest = true;
+            }
+            else if (!Tool.RestrictUpdateRequestsToOwner)
+            {
+                canRequest = true;
+            }
+            else
+            {
+                var userEmail = user.FindFirst(System.Security.Claims.ClaimTypes.Email)?.Value ?? user.FindFirst("preferred_username")?.Value ?? string.Empty;
+                var userName = user.Identity?.Name ?? string.Empty;
+
+                if (!string.IsNullOrWhiteSpace(userEmail) && string.Equals(userEmail.Trim(), Tool.Owner?.Trim(), StringComparison.OrdinalIgnoreCase))
+                {
+                    canRequest = true;
+                }
+                else if (!string.IsNullOrWhiteSpace(userName) && string.Equals(userName.Trim(), Tool.Owner?.Trim(), StringComparison.OrdinalIgnoreCase))
+                {
+                    canRequest = true;
+                }
+                else if (Tool.AllowedUpdateRequesterEmails != null && !string.IsNullOrWhiteSpace(userEmail))
+                {
+                    canRequest = Tool.AllowedUpdateRequesterEmails.Any(e => string.Equals(e.Trim(), userEmail.Trim(), StringComparison.OrdinalIgnoreCase));
+                }
+                else
+                {
+                    canRequest = false;
+                }
+            }
+        }
+        catch
+        {
+            canRequest = true;
         }
 
         show = true;
@@ -193,12 +249,11 @@
         resultMessage = "Processing request...";
         await InvokeAsync(StateHasChanged);
 
-        var auth = await AuthStateProvider.GetAuthenticationStateAsync();
-        var user = auth.User;
+        var effUser = await GetEffectiveUserAsync();
 
-        var requestedByOid = user.FindFirst("http://schemas.microsoft.com/identity/claims/objectidentifier")?.Value ?? string.Empty;
-        var requestedByName = user.Identity?.Name ?? string.Empty;
-        var requestedByEmail = user.FindFirst(ClaimTypes.Email)?.Value ?? string.Empty;
+        var requestedByOid = effUser.FindFirst("http://schemas.microsoft.com/identity/claims/objectidentifier")?.Value ?? string.Empty;
+        var requestedByName = effUser.Identity?.Name ?? string.Empty;
+        var requestedByEmail = effUser.FindFirst(ClaimTypes.Email)?.Value ?? string.Empty;
 
         var input = new CreateToolUpdateRequestInput(
             TargetToolId: Tool.Id,
@@ -209,6 +264,8 @@
             Version: Tool.Version,
             Description: Tool.Description ?? string.Empty,
             Tags: string.Join(',', Tool.Tags ?? Array.Empty<string>()),
+            RestrictUpdateRequestsToOwner: Tool.RestrictUpdateRequestsToOwner,
+            AllowedUpdateRequesterEmails: Tool.AllowedUpdateRequesterEmails is null ? null : string.Join(',', Tool.AllowedUpdateRequesterEmails),
             RequestedVersion: requestedVersion,
             Reason: reason,
             Notes: notes,
@@ -252,5 +309,51 @@
             isSubmitting = false;
             await InvokeAsync(StateHasChanged);
         }
+    }
+
+    private async Task<System.Security.Claims.ClaimsPrincipal> GetEffectiveUserAsync()
+    {
+        // Respect global toggle
+        if (ToolHub.Infrastructure.Impersonation.ImpersonationSettings.Enabled != 1)
+        {
+            var st = await AuthStateProvider.GetAuthenticationStateAsync();
+            return st.User;
+        }
+
+        // Check query string for impersonation params: impersonateEmail or impersonateOid
+        try
+        {
+            var uri = Nav.ToAbsoluteUri(Nav.Uri);
+            var q = QueryHelpers.ParseQuery(uri.Query);
+
+            if (q.TryGetValue("impersonateEmail", out var emailVals) || q.TryGetValue("impersonateOid", out var oidVals))
+            {
+                var email = q.TryGetValue("impersonateEmail", out var ev) ? ev.ToString() : string.Empty;
+                var oid = q.TryGetValue("impersonateOid", out var ov) ? ov.ToString() : string.Empty;
+
+                var claims = new List<System.Security.Claims.Claim>();
+                if (!string.IsNullOrWhiteSpace(email))
+                {
+                    claims.Add(new System.Security.Claims.Claim(System.Security.Claims.ClaimTypes.Email, email));
+                    claims.Add(new System.Security.Claims.Claim("preferred_username", email));
+                    claims.Add(new System.Security.Claims.Claim("name", email));
+                }
+                if (!string.IsNullOrWhiteSpace(oid))
+                {
+                    claims.Add(new System.Security.Claims.Claim("http://schemas.microsoft.com/identity/claims/objectidentifier", oid));
+                    claims.Add(new System.Security.Claims.Claim("oid", oid));
+                }
+
+                var identity = new System.Security.Claims.ClaimsIdentity(claims, "Impersonation");
+                return new System.Security.Claims.ClaimsPrincipal(identity);
+            }
+        }
+        catch
+        {
+            // ignore
+        }
+
+        var st2 = await AuthStateProvider.GetAuthenticationStateAsync();
+        return st2.User;
     }
 }

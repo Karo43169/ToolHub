@@ -37,5 +37,7 @@ public sealed record ToolRequestMetadata(
     string Status,
     string Version,
     string Description,
-    string Tags
+    string Tags,
+    bool RestrictUpdateRequestsToOwner = false,
+    string? AllowedUpdateRequesterEmails = null
 );

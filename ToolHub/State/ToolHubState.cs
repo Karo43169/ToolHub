@@ -54,7 +54,9 @@ public sealed class ToolHubState
                     ManualPath: "manuals/dxq-installer.pdf",
                     UpdatedAtUtc: DateTimeOffset.UtcNow.AddDays(-2),
                     UpdatedByOid: "dev",
-                    UpdatedByName: "Dev User"
+                    UpdatedByName: "Dev User",
+                    RestrictUpdateRequestsToOwner: false,
+                    AllowedUpdateRequesterEmails: new List<string>()
                 ),
                 new(
                     Id: "tool-002",
@@ -69,7 +71,9 @@ public sealed class ToolHubState
                     ManualPath: null,
                     UpdatedAtUtc: DateTimeOffset.UtcNow.AddDays(-7),
                     UpdatedByOid: "dev",
-                    UpdatedByName: "Dev User"
+                    UpdatedByName: "Dev User",
+                    RestrictUpdateRequestsToOwner: false,
+                    AllowedUpdateRequesterEmails: new List<string>()
                 )
             };
         }
