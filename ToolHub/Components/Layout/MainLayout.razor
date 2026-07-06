@@ -598,7 +598,7 @@
 
             <div class="form-group">
                 <label>Additional allowed requesters (comma separated emails)</label>
-                <input @bind="editAllowedRequesters" placeholder="someone@example.com, other@example.com" />
+                <input @bind="editAllowedRequesters" placeholder="someone@example.com, other@example.com" disabled="@(!editRestrictUpdateRequestsToOwner)" />
             </div>
 
             @if (isEdit)
